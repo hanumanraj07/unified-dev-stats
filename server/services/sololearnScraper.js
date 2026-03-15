@@ -12,12 +12,10 @@ async function getSololearnStats(profileUrl) {
         
         browser = await puppeteer.launch({
             headless: true,
-            executablePath: puppeteer.executablePath(),
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu"
+                "--disable-dev-shm-usage"
             ]
         });
 
