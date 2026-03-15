@@ -1,4 +1,25 @@
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
+const fs = require("fs");
+const path = require("path");
+
+function getExecutablePath() {
+  const isRender = process.env.RENDER === 'true' || process.env.RENDER_SERVICE_NAME;
+  if (isRender) {
+    const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (envPath && fs.existsSync(envPath)) {
+      return envPath;
+    }
+    const paths = [
+      '/opt/render/project/.cache/puppeteer/chrome/linux-127.0.0.0/chrome-linux/chrome',
+      path.join(__dirname, 'node_modules', 'puppeteer', '.local-chromium', 'linux-127.0.0.0', 'chrome-linux', 'chrome'),
+      path.join(__dirname, 'node_modules', '@puppeteer', 'browser', 'chrome', 'linux-127.0.0.0', 'chrome-linux', 'chrome'),
+    ];
+    for (const p of paths) {
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
+}
 
 async function getSololearnStats(profileUrl) {
     let browser = null;
@@ -12,6 +33,7 @@ async function getSololearnStats(profileUrl) {
         
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: getExecutablePath(),
             args: [
                 "--no-sandbox", 
                 "--disable-setuid-sandbox",

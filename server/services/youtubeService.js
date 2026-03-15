@@ -2,8 +2,38 @@ const axios = require("axios");
 
 const YOUTUBE_BASE = "https://www.googleapis.com/youtube/v3";
 
+const channelIdCache = new Map();
+const channelStatsCache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
 function sanitizeInput(value) {
   return decodeURIComponent((value || "").trim());
+}
+
+function getCachedChannelId(input) {
+  const key = input.toLowerCase().trim();
+  const cached = channelIdCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.channelId;
+  }
+  return null;
+}
+
+function setCachedChannelId(input, channelId) {
+  const key = input.toLowerCase().trim();
+  channelIdCache.set(key, { channelId, timestamp: Date.now() });
+}
+
+function getCachedStats(channelId) {
+  const cached = channelStatsCache.get(channelId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedStats(channelId, data) {
+  channelStatsCache.set(channelId, { data, timestamp: Date.now() });
 }
 
 function extractYoutubeUsernameFromUrl(value) {
@@ -88,19 +118,35 @@ async function resolveBySearch(query, apiKey) {
 }
 
 async function resolveChannelId(channelInput, apiKey) {
+  const cached = getCachedChannelId(channelInput);
+  if (cached) return cached;
+
   const directChannelId = extractYoutubeChannelId(channelInput);
-  if (directChannelId) return directChannelId;
+  if (directChannelId) {
+    setCachedChannelId(channelInput, directChannelId);
+    return directChannelId;
+  }
 
   const handle = extractYoutubeHandle(channelInput);
   const fromHandle = await resolveByHandle(handle, apiKey);
-  if (fromHandle) return fromHandle;
+  if (fromHandle) {
+    setCachedChannelId(channelInput, fromHandle);
+    return fromHandle;
+  }
 
   const legacyUsername = extractYoutubeUsernameFromUrl(channelInput);
   const fromLegacyUsername = await resolveByLegacyUsername(legacyUsername, apiKey);
-  if (fromLegacyUsername) return fromLegacyUsername;
+  if (fromLegacyUsername) {
+    setCachedChannelId(channelInput, fromLegacyUsername);
+    return fromLegacyUsername;
+  }
 
   const query = handle || legacyUsername || sanitizeInput(channelInput);
-  return resolveBySearch(query, apiKey);
+  const result = await resolveBySearch(query, apiKey);
+  if (result) {
+    setCachedChannelId(channelInput, result);
+  }
+  return result;
 }
 
 async function getYoutube(channelInput) {
@@ -122,6 +168,11 @@ async function getYoutube(channelInput) {
     throw new Error("Could not resolve YouTube channel. Use @handle, channel URL, or channel ID.");
   }
 
+  const cachedStats = getCachedStats(channelId);
+  if (cachedStats) {
+    return { ...cachedStats, lastSynced: new Date() };
+  }
+
   let data;
   try {
     const response = await axios.get(`${YOUTUBE_BASE}/channels`, {
@@ -141,7 +192,7 @@ async function getYoutube(channelInput) {
   const item = data.items?.[0];
   if (!item) return null;
 
-  return {
+  const result = {
     channelId,
     channelTitle: item.snippet?.title || "",
     channelUrl: `https://www.youtube.com/channel/${channelId}`,
@@ -150,6 +201,9 @@ async function getYoutube(channelInput) {
     videos: Number(item.statistics?.videoCount || 0),
     lastSynced: new Date()
   };
+
+  setCachedStats(channelId, result);
+  return result;
 }
 
 module.exports = { getYoutube };
