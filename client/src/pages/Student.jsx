@@ -227,18 +227,75 @@ function Student() {
 
   const onSave = async (event) => {
     event.preventDefault();
+    
+    if (!form.github && !form.leetcode && !form.youtube && !form.sololearnUrl) {
+      pushToast("Add at least one platform username (GitHub/LeetCode/YouTube/SoloLearn).", "error");
+      return;
+    }
+
+    setVerifying(true);
     setSaving(true);
     try {
+      const result = await profileApi.verify({
+        github: form.github,
+        leetcode: form.leetcode,
+        youtube: form.youtube
+      });
+      setVerifiedStats(result.stats || {});
+      setVerifyErrors(result.errors || {});
+      if (result.stats?.github?.avatar) {
+        setForm((prev) => ({ ...prev, avatar: result.stats.github.avatar }));
+      }
+      if (!form.bio && result.stats?.github?.bio) {
+        setForm((prev) => ({ ...prev, bio: result.stats.github.bio }));
+      }
+
+      if (form.sololearnUrl) {
+        try {
+          const slResponse = await sololearnApi.getStats(form.sololearnUrl);
+          if (slResponse && slResponse.data) {
+            const stats = slResponse.data;
+            setForm(prev => ({
+              ...prev,
+              sololearnXp: stats.xp || "0",
+              sololearnLevel: stats.level || "0",
+              sololearnStreak: stats.streak || "0",
+              sololearnBadges: stats.certificates || "0"
+            }));
+          }
+        } catch (slError) {
+          console.error("SoloLearn fetch error:", slError);
+        }
+      }
+
+      if (form.twitterUrl) {
+        try {
+          const twResponse = await twitterApi.getStats(form.twitterUrl);
+          if (twResponse && twResponse.data) {
+            const stats = twResponse.data;
+            setForm(prev => ({
+              ...prev,
+              twitterFollowers: stats.followers || "0",
+              twitterFollowing: stats.following || "0",
+              twitterPosts: stats.posts || "0"
+            }));
+          }
+        } catch (twError) {
+          console.error("Twitter fetch error:", twError);
+        }
+      }
+
       const updated = await profileApi.updateMe(payload);
       setProfile(updated);
       setVerifiedStats(updated.stats || {});
       hydrateForm(updated);
-      pushToast("Your profile has been updated.", "success");
+      pushToast("Profile verified and saved successfully!", "success");
       const leaders = await profileApi.leaderboard();
       setLeaderboard(leaders);
     } catch (error) {
       pushToast(error.response?.data?.message || "Could not save profile.", "error");
     } finally {
+      setVerifying(false);
       setSaving(false);
     }
   };
@@ -298,11 +355,8 @@ function Student() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button type="button" className="btn-secondary" onClick={onVerify} disabled={verifying}>
-              {verifying ? "Verifying..." : "Verify Profile"}
-            </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Saving..." : "Save My Details"}
+              {saving ? "Verifying & Saving..." : "Verify & Save Profile"}
             </button>
           </div>
 
