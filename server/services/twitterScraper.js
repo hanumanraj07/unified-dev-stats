@@ -12,12 +12,12 @@ async function getTwitterStats(profileUrl) {
         
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: puppeteer.executablePath(),
             args: [
-                "--no-sandbox", 
+                "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-features=VizDisplayCompositor"
+                "--disable-gpu"
             ]
         });
 
