@@ -84,6 +84,35 @@ function extractTwitterHandle(profileUrl) {
     return "";
 }
 
+function extractCountsFromHtml(html) {
+    if (!html) return null;
+    const pickNumber = (pattern) => {
+        const match = html.match(pattern);
+        if (!match) return null;
+        const value = parseInt(match[1], 10);
+        return Number.isFinite(value) ? value.toString() : null;
+    };
+
+    const pickText = (pattern) => {
+        const match = html.match(pattern);
+        return match ? match[1] : "";
+    };
+
+    const posts = pickNumber(/(?:statuses_count|statusesCount)"?:\s*(\d+)/);
+    const followers = pickNumber(/(?:followers_count|followersCount)"?:\s*(\d+)/);
+    const following = pickNumber(/(?:friends_count|friendsCount)"?:\s*(\d+)/);
+    const username = pickText(/(?:screen_name|screenName)"?:\s*"?([A-Za-z0-9_]{1,15})"?/);
+
+    if (!posts && !followers && !following) return null;
+
+    return {
+        posts: posts || "0",
+        followers: followers || "0",
+        following: following || "0",
+        username
+    };
+}
+
 async function fetchSyndicationStats(handle) {
     if (!handle) return null;
     const endpoint = `${TWITTER_SYNDICATION_URL}${encodeURIComponent(handle)}`;
@@ -100,7 +129,23 @@ async function fetchSyndicationStats(handle) {
             return null;
         }
 
-        const data = await response.json();
+        const raw = await response.text();
+        if (!raw) {
+            console.warn("Twitter syndication empty response.");
+            return null;
+        }
+        if (raw.trim().startsWith("<")) {
+            console.warn("Twitter syndication returned HTML instead of JSON.");
+            return null;
+        }
+
+        let data = null;
+        try {
+            data = JSON.parse(raw);
+        } catch (parseError) {
+            console.warn("Twitter syndication JSON parse failed, raw length:", raw.length);
+            return null;
+        }
         if (!Array.isArray(data) || !data.length) return null;
         const record = data[0];
         if (!record) return null;
@@ -298,6 +343,18 @@ async function getTwitterStats(profileUrl) {
         });
 
         if (!hasAnyStats) {
+            const html = await page.content();
+            const htmlStats = extractCountsFromHtml(html);
+            if (htmlStats) {
+                console.log("Using Twitter HTML fallback data.");
+                return {
+                    posts: htmlStats.posts,
+                    followers: htmlStats.followers,
+                    following: htmlStats.following,
+                    username: htmlStats.username || data.username || handle
+                };
+            }
+
             const fallback = await fetchSyndicationStats(handle || data.username);
             if (fallback) {
                 console.log("Using Twitter syndication fallback data.");
