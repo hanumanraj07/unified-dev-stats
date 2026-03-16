@@ -1,5 +1,78 @@
 const { launchBrowser } = require("./puppeteerLauncher");
 
+const TWITTER_COOKIE_ENV_KEYS = [
+    "TWITTER_COOKIE_STRING",
+    "TWITTER_COOKIES"
+];
+
+function parseCookieString(cookieString) {
+    if (!cookieString) return [];
+    return cookieString
+        .split(";")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => {
+            const separatorIndex = part.indexOf("=");
+            if (separatorIndex <= 0) return null;
+            const name = part.slice(0, separatorIndex).trim();
+            const value = part.slice(separatorIndex + 1).trim();
+            if (!name || !value) return null;
+            const lowerName = name.toLowerCase();
+            if (["path", "domain", "expires", "max-age", "samesite", "secure", "httponly", "priority"].includes(lowerName)) {
+                return null;
+            }
+            return { name, value };
+        })
+        .filter(Boolean);
+}
+
+function getCookieValue(cookies, name) {
+    return cookies.find(cookie => cookie.name === name)?.value || "";
+}
+
+function buildTwitterCookies() {
+    const cookieString = TWITTER_COOKIE_ENV_KEYS
+        .map(key => process.env[key])
+        .find(value => value && value.trim().length > 0);
+
+    let cookies = parseCookieString(cookieString);
+
+    if (!cookies.length) {
+        const authToken = process.env.TWITTER_AUTH_TOKEN || "";
+        const csrfToken = process.env.TWITTER_CT0 || process.env.TWITTER_CSRF_TOKEN || "";
+
+        if (authToken) {
+            cookies.push({ name: "auth_token", value: authToken });
+        }
+        if (csrfToken) {
+            cookies.push({ name: "ct0", value: csrfToken });
+        }
+    }
+
+    const csrfToken = getCookieValue(cookies, "ct0");
+
+    return { cookies, csrfToken };
+}
+
+function buildCookiePayloads(cookies) {
+    if (!cookies.length) return [];
+
+    const targets = ["https://x.com", "https://twitter.com"];
+    const payloads = [];
+
+    for (const target of targets) {
+        for (const cookie of cookies) {
+            payloads.push({
+                url: target,
+                name: cookie.name,
+                value: cookie.value
+            });
+        }
+    }
+
+    return payloads;
+}
+
 async function getTwitterStats(profileUrl) {
     let browser = null;
     
@@ -13,9 +86,36 @@ async function getTwitterStats(profileUrl) {
         browser = await launchBrowser();
 
         const page = await browser.newPage();
-        
+
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setDefaultNavigationTimeout(45000);
+
+        try {
+            await page.setRequestInterception(true);
+            page.on("request", request => {
+                const resourceType = request.resourceType();
+                if (["image", "media", "font", "stylesheet"].includes(resourceType)) {
+                    request.abort();
+                } else {
+                    request.continue();
+                }
+            });
+        } catch (interceptError) {
+            console.warn("Twitter scraper request interception setup failed:", interceptError?.message || interceptError);
+        }
+
+        const { cookies, csrfToken } = buildTwitterCookies();
+        if (cookies.length) {
+            const cookiePayloads = buildCookiePayloads(cookies);
+            await page.setCookie(...cookiePayloads);
+            console.log(`Applied ${cookiePayloads.length} Twitter auth cookies.`);
+        } else {
+            console.warn("No Twitter auth cookies found. Set TWITTER_COOKIE_STRING for authenticated scraping.");
+        }
+
+        if (csrfToken) {
+            await page.setExtraHTTPHeaders({ "x-csrf-token": csrfToken });
+        }
         
         console.log("Navigating to Twitter profile URL...");
         let response = null;
@@ -39,7 +139,16 @@ async function getTwitterStats(profileUrl) {
             }
         }
 
-        await page.waitForSelector('body', { timeout: 10000 });
+        try {
+            await page.waitForSelector('body', { timeout: 8000 });
+        } catch (waitError) {
+            const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
+            if (waitTimeout) {
+                console.warn("Twitter body selector timed out, continuing with best-effort scrape.");
+            } else {
+                throw waitError;
+            }
+        }
         await new Promise(resolve => setTimeout(resolve, 5000));
 
         const pageTitle = await page.title();
@@ -140,7 +249,7 @@ async function getTwitterStats(profileUrl) {
         console.log("Final scraped Twitter data:", data);
         return data;
     } catch (error) {
-        const isTimeout = error?.name === "TimeoutError" || /Navigation timeout/i.test(error?.message || "");
+        const isTimeout = error?.name === "TimeoutError" || /timeout/i.test(error?.message || "");
         console.error("Error in Twitter scraper:", error);
         if (isTimeout) {
             return { posts: "0", followers: "0", following: "0", username: "" };
