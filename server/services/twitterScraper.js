@@ -1,4 +1,4 @@
-const puppeteer = require("puppeteer");
+const { launchBrowser } = require("./puppeteerLauncher");
 
 async function getTwitterStats(profileUrl) {
     let browser = null;
@@ -10,16 +10,7 @@ async function getTwitterStats(profileUrl) {
             throw new Error('Invalid URL format');
         }
         
-        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-        browser = await puppeteer.launch({
-            headless: true,
-            executablePath: executablePath || undefined,
-            args: [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage"
-            ]
-        });
+        browser = await launchBrowser();
 
         const page = await browser.newPage();
         
