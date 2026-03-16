@@ -15,18 +15,28 @@ async function getTwitterStats(profileUrl) {
         const page = await browser.newPage();
         
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setDefaultNavigationTimeout(60000);
+        await page.setDefaultNavigationTimeout(45000);
         
         console.log("Navigating to Twitter profile URL...");
-        const response = await page.goto(profileUrl, {
-            waitUntil: "networkidle2",
-            timeout: 60000
-        });
+        let response = null;
+        try {
+            response = await page.goto(profileUrl, {
+                waitUntil: "domcontentloaded",
+                timeout: 45000
+            });
+        } catch (navError) {
+            const isTimeout = navError?.name === "TimeoutError" || /Navigation timeout/i.test(navError?.message || "");
+            if (!isTimeout) {
+                throw navError;
+            }
+            console.warn("Twitter navigation timed out, attempting to scrape anyway.");
+        }
         
-        console.log(`Navigation response status: ${response.status()}`);
-        
-        if (response.status() !== 200) {
-            throw new Error(`HTTP ${response.status()} - Failed to load page`);
+        if (response) {
+            console.log(`Navigation response status: ${response.status()}`);
+            if (response.status() !== 200) {
+                throw new Error(`HTTP ${response.status()} - Failed to load page`);
+            }
         }
 
         await page.waitForSelector('body', { timeout: 10000 });
@@ -39,7 +49,8 @@ async function getTwitterStats(profileUrl) {
         console.log(`Current URL: ${currentUrl}`);
 
         if (currentUrl.includes('login') || currentUrl.includes('error') || currentUrl.includes('suspended')) {
-            throw new Error('Redirected to login/error/suspended page - profile may be private or invalid');
+            console.warn("Twitter profile requires login or is unavailable.");
+            return { posts: "0", followers: "0", following: "0", username: "" };
         }
 
         const data = await page.evaluate(() => {
@@ -129,7 +140,11 @@ async function getTwitterStats(profileUrl) {
         console.log("Final scraped Twitter data:", data);
         return data;
     } catch (error) {
+        const isTimeout = error?.name === "TimeoutError" || /Navigation timeout/i.test(error?.message || "");
         console.error("Error in Twitter scraper:", error);
+        if (isTimeout) {
+            return { posts: "0", followers: "0", following: "0", username: "" };
+        }
         throw new Error(`Failed to scrape Twitter profile: ${error.message}`);
     } finally {
         if (browser) {
