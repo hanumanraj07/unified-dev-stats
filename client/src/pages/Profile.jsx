@@ -50,6 +50,19 @@ function Profile() {
     return `https://${value}`;
   };
 
+  const resolveLinkedinSkillsCount = (value) => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const raw = String(value).trim();
+    if (!raw) return 0;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return numeric;
+    return raw
+      .split(/[,;\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean).length;
+  };
+
   const youtubeUrl = (() => {
     const channel = profile?.youtube?.trim();
     if (!channel) return "https://www.youtube.com";
@@ -145,28 +158,24 @@ function Profile() {
       <section className="grid gap-4 xl:grid-cols-2">
         <div className="space-y-4">
           <GithubStats stats={profile?.stats?.github} username={profile?.github} />
-          <div className="panel min-h-[200px]">
+          <div className="panel">
             <h3 className="mb-4 text-lg font-semibold text-white">LinkedIn Overview</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Connections</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.connections ?? 0}</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Connections</p>
+                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.connections ?? 0}</p>
               </div>
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Followers</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.followers ?? 0}</p>
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Posts</p>
+                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.posts ?? 0}</p>
               </div>
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Posts</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.posts ?? 0}</p>
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Skills</p>
+                <p className="text-lg font-bold text-accentBlue">
+                  {resolveLinkedinSkillsCount(profile?.linkedin?.skills)}
+                </p>
               </div>
             </div>
-            {profile?.linkedin?.skills && (
-              <div className="mt-4 rounded-lg border border-line bg-surface p-4">
-                <p className="text-sm text-slate-400 mb-2">Skills</p>
-                <p className="text-base text-slate-200">{profile?.linkedin?.skills}</p>
-              </div>
-            )}
             {profile?.linkedin?.url && (
               <a
                 href={ensureUrl(profile?.linkedin?.url, "https://www.linkedin.com")}
@@ -207,10 +216,7 @@ function Profile() {
               </a>
             )}
           </div>
-          <div className="panel">
-            <h3 className="mb-4 text-lg font-semibold text-white">LeetCode Stats</h3>
-            <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} />
-          </div>
+          <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} />
           <div className="panel">
             <h3 className="mb-4 text-lg font-semibold text-white">YouTube Stats</h3>
             <YoutubeStats stats={profile?.stats?.youtube} />

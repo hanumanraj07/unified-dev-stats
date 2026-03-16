@@ -24,6 +24,19 @@ function StudentPublicDashboard() {
     return `https://${value}`;
   };
 
+  const resolveLinkedinSkillsCount = (value) => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const raw = String(value).trim();
+    if (!raw) return 0;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return numeric;
+    return raw
+      .split(/[,;\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean).length;
+  };
+
   useEffect(() => {
     const run = async () => {
       try {
@@ -153,49 +166,14 @@ function StudentPublicDashboard() {
         <StatCard title="GitHub Repos" value={profile?.stats?.github?.publicRepos ?? 0} tone="green" />
         <StatCard title="LeetCode Solved" value={profile?.stats?.leetcode?.totalSolved ?? 0} tone="orange" />
         <StatCard title="YouTube Subscribers" value={profile?.stats?.youtube?.subscribers ?? 0} tone="blue" />
-        <StatCard title="LinkedIn Followers" value={profile?.linkedin?.followers ?? 0} tone="blue" />
+        <StatCard title="LinkedIn Connections" value={profile?.linkedin?.connections ?? 0} tone="blue" />
         <StatCard title="Twitter Followers" value={profile?.twitter?.followers ?? 0} tone="purple" />
         <StatCard title="Sololearn Certificates" value={profile?.sololearn?.badges ?? 0} tone="green" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
         <div className="space-y-4">
-          <GithubStats stats={profile?.stats?.github} username={profile?.github} />
-          <div className="panel min-h-[200px]">
-            <h3 className="mb-4 text-lg font-semibold text-white">LinkedIn Overview</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Connections</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.connections ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Followers</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.followers ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-5 text-center">
-                <p className="text-sm text-slate-400">Posts</p>
-                <p className="text-2xl font-bold text-accentBlue">{profile?.linkedin?.posts ?? 0}</p>
-              </div>
-            </div>
-            {profile?.linkedin?.skills && (
-              <div className="mt-4 rounded-lg border border-line bg-surface p-4">
-                <p className="text-sm text-slate-400 mb-2">Skills</p>
-                <p className="text-base text-slate-200">{profile?.linkedin?.skills}</p>
-              </div>
-            )}
-            {profile?.linkedin?.url && (
-              <a
-                href={ensureUrl(profile?.linkedin?.url, "https://www.linkedin.com")}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 block text-sm text-accentBlue hover:underline"
-              >
-                View LinkedIn Profile →
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="space-y-4">
+          <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="overview" />
           <div className="panel">
             <h3 className="mb-4 text-lg font-semibold text-white">Twitter Overview</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -224,13 +202,38 @@ function StudentPublicDashboard() {
             )}
           </div>
           <div className="panel">
-            <h3 className="mb-4 text-lg font-semibold text-white">LeetCode Breakdown</h3>
-            <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} />
+            <h3 className="mb-4 text-lg font-semibold text-white">LinkedIn Overview</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Connections</p>
+                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.connections ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Posts</p>
+                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.posts ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-line bg-surface p-3 text-center">
+                <p className="text-xs text-slate-400">Skills</p>
+                <p className="text-lg font-bold text-accentBlue">
+                  {resolveLinkedinSkillsCount(profile?.linkedin?.skills)}
+                </p>
+              </div>
+            </div>
+            {profile?.linkedin?.url && (
+              <a
+                href={ensureUrl(profile?.linkedin?.url, "https://www.linkedin.com")}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 block text-sm text-accentBlue hover:underline"
+              >
+                View LinkedIn Profile →
+              </a>
+            )}
           </div>
-          <div className="panel">
-            <h3 className="mb-4 text-lg font-semibold text-white">YouTube Overview</h3>
-            <YoutubeStats stats={profile?.stats?.youtube} />
-          </div>
+        </div>
+        <div className="space-y-4">
+          <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} variant="overview" />
+          <YoutubeStats stats={profile?.stats?.youtube} />
           <div className="panel">
             <h3 className="mb-4 text-lg font-semibold text-white">Sololearn Overview</h3>
             <div className="grid grid-cols-4 gap-3">
@@ -263,6 +266,11 @@ function StudentPublicDashboard() {
             )}
           </div>
         </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2 items-stretch">
+        <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="contribution" />
+        <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} variant="breakdown" />
       </section>
 
       <section className="panel">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Loader from "../components/Loader";
 import ProfileCard from "../components/ProfileCard";
 import { useToast } from "../components/ToastContext";
@@ -28,6 +28,70 @@ const initialForm = {
   sololearnBadges: ""
 };
 
+const formatGithubInput = (value) => {
+  if (!value) return "";
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://github.com/${trimmed.replace(/^@/, "")}`;
+};
+
+const formatLeetcodeInput = (value) => {
+  if (!value) return "";
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://leetcode.com/${trimmed.replace(/^@/, "")}`;
+};
+
+const formatYoutubeInput = (value) => {
+  if (!value) return "";
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("@")) return `https://www.youtube.com/${trimmed}`;
+  if (trimmed.startsWith("UC")) return `https://www.youtube.com/channel/${trimmed}`;
+  return `https://www.youtube.com/@${trimmed}`;
+};
+
+const normalizeGithubInput = (value) => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  if (lower.includes("github.com")) {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const url = new URL(withScheme);
+      const parts = url.pathname.split("/").filter(Boolean);
+      return parts[0] || "";
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed.replace(/^@/, "");
+};
+
+const normalizeLeetcodeInput = (value) => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  if (lower.includes("leetcode.com")) {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const url = new URL(withScheme);
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (!parts.length) return "";
+      if (["u", "profile", "users"].includes(parts[0])) {
+        return parts[1] || "";
+      }
+      return parts[0] || "";
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed.replace(/^@/, "");
+};
+
 function Student() {
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState(initialForm);
@@ -46,9 +110,9 @@ function Student() {
       username: data?.username || "",
       bio: data?.bio || "",
       avatar: data?.avatar || "",
-      github: data?.github || "",
-      leetcode: data?.leetcode || "",
-      youtube: data?.youtube || "",
+      github: formatGithubInput(data?.github),
+      leetcode: formatLeetcodeInput(data?.leetcode),
+      youtube: formatYoutubeInput(data?.youtube),
       linkedinUrl: data?.linkedin?.url || "",
       linkedinFollowers: String(data?.linkedin?.followers ?? 0),
       linkedinConnections: String(data?.linkedin?.connections ?? 0),
@@ -87,40 +151,6 @@ function Student() {
     run();
   }, [pushToast]);
 
-  const payload = useMemo(
-    () => ({
-      name: form.name,
-      username: form.username,
-      bio: form.bio,
-      avatar: form.avatar,
-      github: form.github,
-      leetcode: form.leetcode,
-      youtube: form.youtube,
-      linkedin: {
-        url: form.linkedinUrl,
-        followers: Number(form.linkedinFollowers || 0),
-        connections: Number(form.linkedinConnections || 0),
-        posts: Number(form.linkedinPosts || 0),
-        skills: form.linkedinSkills || ""
-      },
-      twitter: {
-        url: form.twitterUrl,
-        followers: Number(form.twitterFollowers || 0),
-        following: Number(form.twitterFollowing || 0),
-        posts: Number(form.twitterPosts || 0)
-      },
-      sololearn: {
-        url: form.sololearnUrl,
-        xp: Number(form.sololearnXp || 0),
-        level: Number(form.sololearnLevel || 0),
-        streak: Number(form.sololearnStreak || 0),
-        badges: Number(form.sololearnBadges || 0)
-      },
-      stats: verifiedStats
-    }),
-    [form, verifiedStats]
-  );
-
   const onChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -128,15 +158,15 @@ function Student() {
 
   const onVerify = async () => {
     if (!form.github && !form.leetcode && !form.youtube && !form.sololearnUrl) {
-      pushToast("Add at least one platform username (GitHub/LeetCode/YouTube/SoloLearn).", "error");
+      pushToast("Add at least one platform URL (GitHub/LeetCode/YouTube/SoloLearn).", "error");
       return;
     }
 
     setVerifying(true);
     try {
       const result = await profileApi.verify({
-        github: form.github,
-        leetcode: form.leetcode,
+        github: normalizeGithubInput(form.github),
+        leetcode: normalizeLeetcodeInput(form.leetcode),
         youtube: form.youtube
       });
       setVerifiedStats(result.stats || {});
@@ -229,7 +259,7 @@ function Student() {
     event.preventDefault();
     
     if (!form.github && !form.leetcode && !form.youtube && !form.sololearnUrl) {
-      pushToast("Add at least one platform username (GitHub/LeetCode/YouTube/SoloLearn).", "error");
+      pushToast("Add at least one platform URL (GitHub/LeetCode/YouTube/SoloLearn).", "error");
       return;
     }
 
@@ -237,17 +267,19 @@ function Student() {
     setSaving(true);
     try {
       const result = await profileApi.verify({
-        github: form.github,
-        leetcode: form.leetcode,
+        github: normalizeGithubInput(form.github),
+        leetcode: normalizeLeetcodeInput(form.leetcode),
         youtube: form.youtube
       });
-      setVerifiedStats(result.stats || {});
+      const nextStats = result.stats || {};
+      setVerifiedStats(nextStats);
       setVerifyErrors(result.errors || {});
-      if (result.stats?.github?.avatar) {
-        setForm((prev) => ({ ...prev, avatar: result.stats.github.avatar }));
+      const nextForm = { ...form };
+      if (nextStats?.github?.avatar) {
+        nextForm.avatar = nextStats.github.avatar;
       }
-      if (!form.bio && result.stats?.github?.bio) {
-        setForm((prev) => ({ ...prev, bio: result.stats.github.bio }));
+      if (!nextForm.bio && nextStats?.github?.bio) {
+        nextForm.bio = nextStats.github.bio;
       }
 
       if (form.sololearnUrl) {
@@ -255,13 +287,10 @@ function Student() {
           const slResponse = await sololearnApi.getStats(form.sololearnUrl);
           if (slResponse && slResponse.data) {
             const stats = slResponse.data;
-            setForm(prev => ({
-              ...prev,
-              sololearnXp: stats.xp || "0",
-              sololearnLevel: stats.level || "0",
-              sololearnStreak: stats.streak || "0",
-              sololearnBadges: stats.certificates || "0"
-            }));
+            nextForm.sololearnXp = stats.xp || "0";
+            nextForm.sololearnLevel = stats.level || "0";
+            nextForm.sololearnStreak = stats.streak || "0";
+            nextForm.sololearnBadges = stats.certificates || "0";
           }
         } catch (slError) {
           console.error("SoloLearn fetch error:", slError);
@@ -273,17 +302,45 @@ function Student() {
           const twResponse = await twitterApi.getStats(form.twitterUrl);
           if (twResponse && twResponse.data) {
             const stats = twResponse.data;
-            setForm(prev => ({
-              ...prev,
-              twitterFollowers: stats.followers || "0",
-              twitterFollowing: stats.following || "0",
-              twitterPosts: stats.posts || "0"
-            }));
+            nextForm.twitterFollowers = stats.followers || "0";
+            nextForm.twitterFollowing = stats.following || "0";
+            nextForm.twitterPosts = stats.posts || "0";
           }
         } catch (twError) {
           console.error("Twitter fetch error:", twError);
         }
       }
+
+      const payload = {
+        name: nextForm.name,
+        username: nextForm.username,
+        bio: nextForm.bio,
+        avatar: nextForm.avatar,
+        github: normalizeGithubInput(nextForm.github),
+        leetcode: normalizeLeetcodeInput(nextForm.leetcode),
+        youtube: nextForm.youtube,
+        linkedin: {
+          url: nextForm.linkedinUrl,
+          followers: Number(nextForm.linkedinFollowers || 0),
+          connections: Number(nextForm.linkedinConnections || 0),
+          posts: Number(nextForm.linkedinPosts || 0),
+          skills: nextForm.linkedinSkills || ""
+        },
+        twitter: {
+          url: nextForm.twitterUrl,
+          followers: Number(nextForm.twitterFollowers || 0),
+          following: Number(nextForm.twitterFollowing || 0),
+          posts: Number(nextForm.twitterPosts || 0)
+        },
+        sololearn: {
+          url: nextForm.sololearnUrl,
+          xp: Number(nextForm.sololearnXp || 0),
+          level: Number(nextForm.sololearnLevel || 0),
+          streak: Number(nextForm.sololearnStreak || 0),
+          badges: Number(nextForm.sololearnBadges || 0)
+        },
+        stats: nextStats
+      };
 
       const updated = await profileApi.updateMe(payload);
       setProfile(updated);
@@ -326,20 +383,20 @@ function Student() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="mb-1 block text-sm text-slate-300">GitHub</label>
+              <label className="mb-1 block text-sm text-slate-300">GitHub URL</label>
               <input name="github" className="input" value={form.github} onChange={onChange} />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300">LeetCode</label>
+              <label className="mb-1 block text-sm text-slate-300">LeetCode URL</label>
               <input name="leetcode" className="input" value={form.leetcode} onChange={onChange} />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300">YouTube</label>
+              <label className="mb-1 block text-sm text-slate-300">YouTube URL</label>
               <input name="youtube" className="input" value={form.youtube} onChange={onChange} />
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm text-slate-300">LinkedIn URL</label>
               <input name="linkedinUrl" className="input" value={form.linkedinUrl} onChange={onChange} />
@@ -351,6 +408,42 @@ function Student() {
             <div>
               <label className="mb-1 block text-sm text-slate-300">Sololearn URL</label>
               <input name="sololearnUrl" className="input" value={form.sololearnUrl} onChange={onChange} />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">LinkedIn Connections</label>
+              <input
+                name="linkedinConnections"
+                type="number"
+                min="0"
+                className="input"
+                value={form.linkedinConnections}
+                onChange={onChange}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">LinkedIn Posts</label>
+              <input
+                name="linkedinPosts"
+                type="number"
+                min="0"
+                className="input"
+                value={form.linkedinPosts}
+                onChange={onChange}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">LinkedIn Skills (count)</label>
+              <input
+                name="linkedinSkills"
+                type="number"
+                min="0"
+                className="input"
+                value={form.linkedinSkills}
+                onChange={onChange}
+              />
             </div>
           </div>
 

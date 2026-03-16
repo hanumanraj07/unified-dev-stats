@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
-const { fetchAndCacheStats, checkRedList } = require("../services/statsCacheService");
+const { fetchAndCacheStats, fetchPlatformStats, checkRedList } = require("../services/statsCacheService");
 
 function safeNumber(value) {
   const num = Number(value);
@@ -55,6 +55,24 @@ function mergeStats(existingStats, verifiedStats) {
     twitter: pick("twitter"),
     sololearn: pick("sololearn")
   };
+}
+
+async function fetchVerifiedStats(platforms) {
+  const { stats, errors } = await fetchPlatformStats(platforms);
+  const hasData = ["github", "leetcode", "youtube"].some((key) => {
+    const data = stats?.[key];
+    if (!data) return false;
+    return Object.entries(data).some(([field, value]) => field !== "lastSynced" && Boolean(value));
+  });
+
+  if (!hasData) {
+    const errorMessage =
+      Object.values(errors || {}).filter(Boolean).join(" | ") ||
+      "Unable to verify platform stats.";
+    throw new Error(errorMessage);
+  }
+
+  return { stats, errors };
 }
 
 function applyProfilePayload(profile, payload, stats) {
