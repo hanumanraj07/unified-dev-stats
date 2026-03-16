@@ -16,20 +16,54 @@ async function getSololearnStats(profileUrl) {
         
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setDefaultNavigationTimeout(60000);
+
+        try {
+            await page.setRequestInterception(true);
+            page.on("request", request => {
+                const resourceType = request.resourceType();
+                if (["image", "media", "font", "stylesheet"].includes(resourceType)) {
+                    request.abort();
+                } else {
+                    request.continue();
+                }
+            });
+        } catch (interceptError) {
+            console.warn("SoloLearn scraper request interception setup failed:", interceptError?.message || interceptError);
+        }
         
         console.log("Navigating to profile URL...");
-        const response = await page.goto(profileUrl, {
-            waitUntil: "networkidle2",
-            timeout: 60000
-        });
+        let response = null;
+        try {
+            response = await page.goto(profileUrl, {
+                waitUntil: "networkidle2",
+                timeout: 60000
+            });
+        } catch (navError) {
+            const isTimeout = navError?.name === "TimeoutError" || /timeout/i.test(navError?.message || "");
+            if (!isTimeout) {
+                throw navError;
+            }
+            console.warn("SoloLearn navigation timed out, continuing with best-effort scrape.");
+        }
         
-        console.log(`Navigation response status: ${response.status()}`);
-        
-        if (response.status() !== 200) {
-            throw new Error(`HTTP ${response.status()} - Failed to load page`);
+        if (response) {
+            console.log(`Navigation response status: ${response.status()}`);
+            
+            if (response.status() !== 200) {
+                throw new Error(`HTTP ${response.status()} - Failed to load page`);
+            }
         }
 
-        await page.waitForSelector('body', { timeout: 10000 });
+        try {
+            await page.waitForSelector('body', { timeout: 10000 });
+        } catch (waitError) {
+            const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
+            if (waitTimeout) {
+                console.warn("SoloLearn body selector timed out, continuing with best-effort scrape.");
+            } else {
+                throw waitError;
+            }
+        }
         await new Promise(resolve => setTimeout(resolve, 5000));
 
         const pageTitle = await page.title();
@@ -151,7 +185,11 @@ async function getSololearnStats(profileUrl) {
         console.log("Final scraped data:", data);
         return data;
     } catch (error) {
+        const isTimeout = error?.name === "TimeoutError" || /timeout/i.test(error?.message || "");
         console.error("Error in SoloLearn scraper:", error);
+        if (isTimeout) {
+            return { xp: "0", level: "0", streak: "0", certificates: "0", username: "" };
+        }
         throw new Error(`Failed to scrape SoloLearn profile: ${error.message}`);
     } finally {
         if (browser) {

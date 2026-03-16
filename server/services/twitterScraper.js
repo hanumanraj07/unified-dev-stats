@@ -1,5 +1,7 @@
 const { launchBrowser } = require("./puppeteerLauncher");
 
+const TWITTER_SYNDICATION_URL = "https://cdn.syndication.twimg.com/widgets/followbutton/info.json?screen_names=";
+
 const TWITTER_COOKIE_ENV_KEYS = [
     "TWITTER_COOKIE_STRING",
     "TWITTER_COOKIES"
@@ -73,6 +75,48 @@ function buildCookiePayloads(cookies) {
     return payloads;
 }
 
+function extractTwitterHandle(profileUrl) {
+    if (!profileUrl || typeof profileUrl !== "string") return "";
+    const trimmed = profileUrl.trim();
+    const match = trimmed.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]+)/i);
+    if (match) return match[1];
+    if (/^[A-Za-z0-9_]{1,15}$/.test(trimmed)) return trimmed;
+    return "";
+}
+
+async function fetchSyndicationStats(handle) {
+    if (!handle) return null;
+    const endpoint = `${TWITTER_SYNDICATION_URL}${encodeURIComponent(handle)}`;
+    try {
+        const response = await fetch(endpoint, {
+            headers: {
+                "accept": "application/json,text/plain,*/*",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        });
+
+        if (!response.ok) {
+            console.warn(`Twitter syndication fetch failed with status ${response.status()}`);
+            return null;
+        }
+
+        const data = await response.json();
+        if (!Array.isArray(data) || !data.length) return null;
+        const record = data[0];
+        if (!record) return null;
+
+        return {
+            posts: record.statuses_count?.toString?.() || "0",
+            followers: record.followers_count?.toString?.() || "0",
+            following: record.friends_count?.toString?.() || "0",
+            username: record.screen_name || handle
+        };
+    } catch (error) {
+        console.warn("Twitter syndication fetch error:", error?.message || error);
+        return null;
+    }
+}
+
 async function getTwitterStats(profileUrl) {
     let browser = null;
     
@@ -104,6 +148,7 @@ async function getTwitterStats(profileUrl) {
             console.warn("Twitter scraper request interception setup failed:", interceptError?.message || interceptError);
         }
 
+        const handle = extractTwitterHandle(profileUrl);
         const { cookies, csrfToken } = buildTwitterCookies();
         if (cookies.length) {
             const cookiePayloads = buildCookiePayloads(cookies);
@@ -159,7 +204,8 @@ async function getTwitterStats(profileUrl) {
 
         if (currentUrl.includes('login') || currentUrl.includes('error') || currentUrl.includes('suspended')) {
             console.warn("Twitter profile requires login or is unavailable.");
-            return { posts: "0", followers: "0", following: "0", username: "" };
+            const fallback = await fetchSyndicationStats(handle);
+            return fallback || { posts: "0", followers: "0", following: "0", username: "" };
         }
 
         const data = await page.evaluate(() => {
@@ -246,13 +292,28 @@ async function getTwitterStats(profileUrl) {
             return result;
         });
 
+        const hasAnyStats = ["posts", "followers", "following"].some(key => {
+            const value = parseInt(data[key], 10);
+            return Number.isFinite(value) && value > 0;
+        });
+
+        if (!hasAnyStats) {
+            const fallback = await fetchSyndicationStats(handle || data.username);
+            if (fallback) {
+                console.log("Using Twitter syndication fallback data.");
+                return fallback;
+            }
+        }
+
         console.log("Final scraped Twitter data:", data);
         return data;
     } catch (error) {
         const isTimeout = error?.name === "TimeoutError" || /timeout/i.test(error?.message || "");
         console.error("Error in Twitter scraper:", error);
         if (isTimeout) {
-            return { posts: "0", followers: "0", following: "0", username: "" };
+            const handle = extractTwitterHandle(profileUrl);
+            const fallback = await fetchSyndicationStats(handle);
+            return fallback || { posts: "0", followers: "0", following: "0", username: "" };
         }
         throw new Error(`Failed to scrape Twitter profile: ${error.message}`);
     } finally {
