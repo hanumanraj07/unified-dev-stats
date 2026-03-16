@@ -1,5 +1,138 @@
 const { launchBrowser } = require("./puppeteerLauncher");
 
+const SOLOLEARN_COOKIE_ENV_KEYS = [
+    "SOLOLEARN_COOKIE_STRING",
+    "SOLOLEARN_COOKIES"
+];
+
+function parseCookieString(cookieString) {
+    if (!cookieString) return [];
+    return cookieString
+        .split(";")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => {
+            const separatorIndex = part.indexOf("=");
+            if (separatorIndex <= 0) return null;
+            const name = part.slice(0, separatorIndex).trim();
+            const value = part.slice(separatorIndex + 1).trim();
+            if (!name || !value) return null;
+            const lowerName = name.toLowerCase();
+            if (["path", "domain", "expires", "max-age", "samesite", "secure", "httponly", "priority"].includes(lowerName)) {
+                return null;
+            }
+            return { name, value };
+        })
+        .filter(Boolean);
+}
+
+function buildSololearnCookies() {
+    const cookieString = SOLOLEARN_COOKIE_ENV_KEYS
+        .map(key => process.env[key])
+        .find(value => value && value.trim().length > 0);
+    return parseCookieString(cookieString);
+}
+
+function buildCookiePayloads(cookies) {
+    if (!cookies.length) return [];
+    return cookies.map(cookie => ({
+        url: "https://www.sololearn.com",
+        name: cookie.name,
+        value: cookie.value
+    }));
+}
+
+function isSololearnApiUrl(url) {
+    if (!url) return false;
+    return url.includes("api2.sololearn.com") || url.includes("api3.sololearn.com");
+}
+
+function walkObject(value, visitor, seen = new Set()) {
+    if (!value || typeof value !== "object") return;
+    if (seen.has(value)) return;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+        value.forEach(item => walkObject(item, visitor, seen));
+        return;
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+        visitor(key, val, value);
+        walkObject(val, visitor, seen);
+    }
+}
+
+function normalizeNumber(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+        const cleaned = value.replace(/,/g, "").match(/\d+/);
+        if (!cleaned) return null;
+        const num = Number(cleaned[0]);
+        return Number.isFinite(num) ? num : null;
+    }
+    return null;
+}
+
+function extractCount(value) {
+    if (Array.isArray(value)) return value.length;
+    if (value && typeof value === "object") {
+        if (Array.isArray(value.items)) return value.items.length;
+        if (Array.isArray(value.data)) return value.data.length;
+    }
+    return normalizeNumber(value);
+}
+
+function extractSololearnStatsFromResponses(responses) {
+    if (!responses.length) return null;
+    const xpKeys = new Set(["xp", "totalxp", "experience", "experiencepoints"]);
+    const levelKeys = new Set(["level", "userlevel", "levelnumber"]);
+    const streakKeys = new Set(["streak", "currentstreak", "streakdays", "currentstreakdays"]);
+    const certKeys = new Set(["certificates", "certificatecount", "certs", "badges", "badgecount"]);
+    const usernameKeys = new Set(["username", "userName", "nickname", "displayname", "name"]);
+
+    let xp = null;
+    let level = null;
+    let streak = null;
+    let certificates = null;
+    let username = "";
+
+    const tryAssignNumber = (key, value) => {
+        const lower = key.toLowerCase();
+        if (xp === null && xpKeys.has(lower)) xp = extractCount(value);
+        if (level === null && levelKeys.has(lower)) level = extractCount(value);
+        if (streak === null && streakKeys.has(lower)) streak = extractCount(value);
+        if (certificates === null && certKeys.has(lower)) certificates = extractCount(value);
+    };
+
+    const tryAssignName = (key, value) => {
+        if (username) return;
+        const lower = key.toLowerCase();
+        if (usernameKeys.has(lower) && typeof value === "string" && value.trim().length > 0) {
+            username = value.trim();
+        }
+    };
+
+    responses.forEach(({ data }) => {
+        walkObject(data, (key, value) => {
+            tryAssignNumber(key, value);
+            tryAssignName(key, value);
+        });
+    });
+
+    const hasAny = [xp, level, streak, certificates].some(val => Number.isFinite(val) && val > 0);
+    if (!hasAny) return null;
+
+    return {
+        xp: Number.isFinite(xp) ? xp.toString() : "0",
+        level: Number.isFinite(level) ? level.toString() : "0",
+        streak: Number.isFinite(streak) ? streak.toString() : "0",
+        certificates: Number.isFinite(certificates) ? certificates.toString() : "0",
+        username
+    };
+}
+
 async function getSololearnStats(profileUrl) {
     let browser = null;
     
@@ -30,6 +163,30 @@ async function getSololearnStats(profileUrl) {
         } catch (interceptError) {
             console.warn("SoloLearn scraper request interception setup failed:", interceptError?.message || interceptError);
         }
+
+        const apiResponses = [];
+        page.on("response", async (response) => {
+            const url = response.url();
+            if (!isSololearnApiUrl(url)) return;
+            const contentType = response.headers()?.["content-type"] || "";
+            if (!contentType.includes("application/json")) return;
+            if (apiResponses.length > 20) return;
+            try {
+                const data = await response.json();
+                apiResponses.push({ url, data });
+            } catch (responseError) {
+                console.warn("SoloLearn API response parse failed:", responseError?.message || responseError);
+            }
+        });
+
+        const cookies = buildSololearnCookies();
+        if (cookies.length) {
+            const cookiePayloads = buildCookiePayloads(cookies);
+            await page.setCookie(...cookiePayloads);
+            console.log(`Applied ${cookiePayloads.length} SoloLearn auth cookies.`);
+        } else {
+            console.warn("No SoloLearn auth cookies found. Set SOLOLEARN_COOKIE_STRING for authenticated scraping.");
+        }
         
         console.log("Navigating to profile URL...");
         let response = null;
@@ -55,6 +212,15 @@ async function getSololearnStats(profileUrl) {
         }
 
         try {
+            await page.waitForResponse(
+                (resp) => isSololearnApiUrl(resp.url()) && resp.status() === 200,
+                { timeout: 15000 }
+            );
+        } catch (waitApiError) {
+            console.warn("SoloLearn API response wait timed out.");
+        }
+
+        try {
             await page.waitForSelector('body', { timeout: 10000 });
         } catch (waitError) {
             const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
@@ -65,6 +231,12 @@ async function getSololearnStats(profileUrl) {
             }
         }
         await new Promise(resolve => setTimeout(resolve, 5000));
+
+        const apiStats = extractSololearnStatsFromResponses(apiResponses);
+        if (apiStats) {
+            console.log("Final scraped data (api):", apiStats);
+            return apiStats;
+        }
 
         const pageTitle = await page.title();
         console.log(`Page title: ${pageTitle}`);

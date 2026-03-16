@@ -113,6 +113,71 @@ function extractCountsFromHtml(html) {
     };
 }
 
+function isTwitterApiUrl(url) {
+    if (!url) return false;
+    return url.includes("/i/api/") || url.includes("api.twitter.com");
+}
+
+function findTwitterLegacyObject(value, seen = new Set()) {
+    if (!value || typeof value !== "object") return null;
+    if (seen.has(value)) return null;
+    seen.add(value);
+
+    if (
+        Object.prototype.hasOwnProperty.call(value, "followers_count") ||
+        Object.prototype.hasOwnProperty.call(value, "friends_count") ||
+        Object.prototype.hasOwnProperty.call(value, "statuses_count")
+    ) {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = findTwitterLegacyObject(item, seen);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    for (const entry of Object.values(value)) {
+        const found = findTwitterLegacyObject(entry, seen);
+        if (found) return found;
+    }
+
+    return null;
+}
+
+function extractTwitterStatsFromResponses(responses) {
+    if (!responses.length) return null;
+
+    for (const { data } of responses) {
+        if (!data) continue;
+        const legacy =
+            data?.data?.user?.result?.legacy ||
+            data?.data?.user?.legacy ||
+            findTwitterLegacyObject(data);
+
+        if (!legacy) continue;
+
+        const posts = legacy.statuses_count;
+        const followers = legacy.followers_count;
+        const following = legacy.friends_count;
+        const username = legacy.screen_name || "";
+
+        const hasAny = [posts, followers, following].some(val => Number.isFinite(val) && val > 0);
+        if (!hasAny) continue;
+
+        return {
+            posts: posts?.toString?.() || "0",
+            followers: followers?.toString?.() || "0",
+            following: following?.toString?.() || "0",
+            username
+        };
+    }
+
+    return null;
+}
+
 async function fetchSyndicationStats(handle) {
     if (!handle) return null;
     const endpoint = `${TWITTER_SYNDICATION_URL}${encodeURIComponent(handle)}`;
@@ -193,6 +258,21 @@ async function getTwitterStats(profileUrl) {
             console.warn("Twitter scraper request interception setup failed:", interceptError?.message || interceptError);
         }
 
+        const apiResponses = [];
+        page.on("response", async (response) => {
+            const url = response.url();
+            if (!isTwitterApiUrl(url)) return;
+            const contentType = response.headers()?.["content-type"] || "";
+            if (!contentType.includes("application/json")) return;
+            if (apiResponses.length > 20) return;
+            try {
+                const data = await response.json();
+                apiResponses.push({ url, data });
+            } catch (responseError) {
+                console.warn("Twitter API response parse failed:", responseError?.message || responseError);
+            }
+        });
+
         const handle = extractTwitterHandle(profileUrl);
         const { cookies, csrfToken } = buildTwitterCookies();
         if (cookies.length) {
@@ -230,6 +310,15 @@ async function getTwitterStats(profileUrl) {
         }
 
         try {
+            await page.waitForResponse(
+                (resp) => isTwitterApiUrl(resp.url()) && resp.status() === 200,
+                { timeout: 10000 }
+            );
+        } catch (waitApiError) {
+            console.warn("Twitter API response wait timed out.");
+        }
+
+        try {
             await page.waitForSelector('body', { timeout: 8000 });
         } catch (waitError) {
             const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
@@ -249,6 +338,11 @@ async function getTwitterStats(profileUrl) {
 
         if (currentUrl.includes('login') || currentUrl.includes('error') || currentUrl.includes('suspended')) {
             console.warn("Twitter profile requires login or is unavailable.");
+            const apiStats = extractTwitterStatsFromResponses(apiResponses);
+            if (apiStats) {
+                console.log("Using Twitter API response data.");
+                return apiStats;
+            }
             const fallback = await fetchSyndicationStats(handle);
             return fallback || { posts: "0", followers: "0", following: "0", username: "" };
         }
@@ -343,6 +437,12 @@ async function getTwitterStats(profileUrl) {
         });
 
         if (!hasAnyStats) {
+            const apiStats = extractTwitterStatsFromResponses(apiResponses);
+            if (apiStats) {
+                console.log("Using Twitter API response data.");
+                return apiStats;
+            }
+
             const html = await page.content();
             const htmlStats = extractCountsFromHtml(html);
             if (htmlStats) {

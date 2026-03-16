@@ -12,6 +12,13 @@ router.get("/scraper", async (req, res) => {
 
         const data = await getSololearnStats(url);
 
+        res.set({
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "ETag": ""
+        });
+
         res.json({
             success: true,
             data
