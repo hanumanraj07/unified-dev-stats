@@ -8,7 +8,9 @@
     "dev:client": "npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "build": "npm run build --prefix client",
-    "start": "npm run start --prefix server"
+    "start": "npm run start --prefix server",
+    "render-build": "npm install --prefix server && npx puppeteer browsers install chrome --prefix server",
+    "render-start": "npm run start --prefix server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
