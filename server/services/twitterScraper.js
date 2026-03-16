@@ -10,8 +10,10 @@ async function getTwitterStats(profileUrl) {
             throw new Error('Invalid URL format');
         }
         
+        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: executablePath || undefined,
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
