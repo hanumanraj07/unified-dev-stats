@@ -135,6 +135,9 @@ function extractSololearnStatsFromResponses(responses) {
 
 async function getSololearnStats(profileUrl) {
     let browser = null;
+    const navigationTimeout = 20000;
+    const apiWaitTimeout = 8000;
+    const bodyWaitTimeout = 4000;
     
     try {
         console.log(`Starting SoloLearn scraper for URL: ${profileUrl}`);
@@ -148,7 +151,8 @@ async function getSololearnStats(profileUrl) {
         const page = await browser.newPage();
         
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setDefaultNavigationTimeout(60000);
+        await page.setDefaultNavigationTimeout(navigationTimeout);
+        await page.setDefaultTimeout(Math.min(10000, navigationTimeout));
 
         try {
             await page.setRequestInterception(true);
@@ -165,6 +169,11 @@ async function getSololearnStats(profileUrl) {
         }
 
         const apiResponses = [];
+        let apiStats = null;
+        let resolveApiStats = null;
+        const apiStatsPromise = new Promise((resolve) => {
+            resolveApiStats = resolve;
+        });
         page.on("response", async (response) => {
             const url = response.url();
             if (!isSololearnApiUrl(url)) return;
@@ -174,6 +183,13 @@ async function getSololearnStats(profileUrl) {
             try {
                 const data = await response.json();
                 apiResponses.push({ url, data });
+                if (!apiStats) {
+                    const extracted = extractSololearnStatsFromResponses(apiResponses);
+                    if (extracted) {
+                        apiStats = extracted;
+                        resolveApiStats(extracted);
+                    }
+                }
             } catch (responseError) {
                 console.warn("SoloLearn API response parse failed:", responseError?.message || responseError);
             }
@@ -192,8 +208,8 @@ async function getSololearnStats(profileUrl) {
         let response = null;
         try {
             response = await page.goto(profileUrl, {
-                waitUntil: "networkidle2",
-                timeout: 60000
+                waitUntil: "domcontentloaded",
+                timeout: navigationTimeout
             });
         } catch (navError) {
             const isTimeout = navError?.name === "TimeoutError" || /timeout/i.test(navError?.message || "");
@@ -212,30 +228,31 @@ async function getSololearnStats(profileUrl) {
         }
 
         try {
-            await page.waitForResponse(
-                (resp) => isSololearnApiUrl(resp.url()) && resp.status() === 200,
-                { timeout: 15000 }
-            );
+            await Promise.race([
+                apiStatsPromise,
+                new Promise((resolve) => setTimeout(resolve, apiWaitTimeout))
+            ]);
         } catch (waitApiError) {
-            console.warn("SoloLearn API response wait timed out.");
+            console.warn("SoloLearn API response wait error:", waitApiError?.message || waitApiError);
         }
 
-        try {
-            await page.waitForSelector('body', { timeout: 10000 });
-        } catch (waitError) {
-            const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
-            if (waitTimeout) {
-                console.warn("SoloLearn body selector timed out, continuing with best-effort scrape.");
-            } else {
-                throw waitError;
+        if (!apiStats) {
+            try {
+                await page.waitForSelector('body', { timeout: bodyWaitTimeout });
+            } catch (waitError) {
+                const waitTimeout = waitError?.name === "TimeoutError" || /timeout/i.test(waitError?.message || "");
+                if (waitTimeout) {
+                    console.warn("SoloLearn body selector timed out, continuing with best-effort scrape.");
+                } else {
+                    throw waitError;
+                }
             }
         }
-        await new Promise(resolve => setTimeout(resolve, 5000));
 
-        const apiStats = extractSololearnStatsFromResponses(apiResponses);
-        if (apiStats) {
-            console.log("Final scraped data (api):", apiStats);
-            return apiStats;
+        const extractedApiStats = apiStats || extractSololearnStatsFromResponses(apiResponses);
+        if (extractedApiStats) {
+            console.log("Final scraped data (api):", extractedApiStats);
+            return extractedApiStats;
         }
 
         const pageTitle = await page.title();
