@@ -164,10 +164,10 @@ function extractSololearnProfileId(profileUrl) {
 
 async function fetchSololearnApiStats(profileUrl) {
     const profileId = extractSololearnProfileId(profileUrl);
-    if (!profileId) return null;
+    if (!profileId) return { stats: null, authFailed: false };
 
     const bearer = getSololearnBearer();
-    if (!bearer) return null;
+    if (!bearer) return { stats: null, authFailed: false };
 
     const headers = {
         Accept: "application/json",
@@ -179,37 +179,43 @@ async function fetchSololearnApiStats(profileUrl) {
 
     const baseUrls = ["https://api2.sololearn.com", "https://api3.sololearn.com"];
     const paths = [
-        `/v2/profile/${profileId}`,
         `/v2/profile/${profileId}?sections=1,3,7,8`,
-        `/v2/userprofile/${profileId}`,
-        `/v2/userprofile/${profileId}?sections=1,3,7,8`,
-        `/v2/streak/api/streaks/${profileId}`,
         `/v2/learningexperience/${profileId}`,
+        `/v2/streak/api/streaks/${profileId}`,
         `/v2/xp/${profileId}`
     ];
 
     const responses = [];
+    let authFailed = false;
 
     for (const base of baseUrls) {
-        for (const path of paths) {
-            const url = `${base}${path}`;
-            try {
-                const { data } = await axios.get(url, { headers, timeout: 8000 });
-                responses.push({ url, data });
-                const extracted = extractSololearnStatsFromResponses(responses);
-                if (extracted) {
-                    return extracted;
-                }
-            } catch (error) {
-                const status = error?.response?.status;
+        const requests = paths.map((path) =>
+            axios.get(`${base}${path}`, { headers, timeout: 5000 })
+        );
+        const results = await Promise.allSettled(requests);
+
+        results.forEach((result, index) => {
+            if (result.status === "fulfilled") {
+                responses.push({ url: `${base}${paths[index]}`, data: result.value.data });
+            } else {
+                const status = result.reason?.response?.status;
                 if (status === 401 || status === 403) {
-                    return null;
+                    authFailed = true;
                 }
             }
+        });
+
+        const extracted = extractSololearnStatsFromResponses(responses);
+        if (extracted) {
+            return { stats: extracted, authFailed: false };
+        }
+
+        if (responses.length === 0 && authFailed) {
+            return { stats: null, authFailed: true };
         }
     }
 
-    return extractSololearnStatsFromResponses(responses);
+    return { stats: extractSololearnStatsFromResponses(responses), authFailed };
 }
 
 async function getSololearnStats(profileUrl) {
@@ -225,16 +231,22 @@ async function getSololearnStats(profileUrl) {
             throw new Error('Invalid URL format');
         }
         
-        const apiDirectStats = await fetchSololearnApiStats(profileUrl);
-        if (apiDirectStats) {
-            console.log("Final scraped data (api-direct):", apiDirectStats);
-            return apiDirectStats;
+        const apiResult = await fetchSololearnApiStats(profileUrl);
+        if (apiResult.stats) {
+            console.log("Final scraped data (api-direct):", apiResult.stats);
+            return apiResult.stats;
         }
 
         const cookies = buildSololearnCookies();
         const bearer = getSololearnBearer();
-        if (!cookies.length && !bearer) {
-            console.warn("No SoloLearn auth cookies or bearer token found. Skipping scrape.");
+        if (!cookies.length) {
+            if (!bearer) {
+                console.warn("No SoloLearn auth cookies or bearer token found. Skipping scrape.");
+            } else if (apiResult.authFailed) {
+                console.warn("SoloLearn bearer token rejected. Skipping scrape.");
+            } else {
+                console.warn("SoloLearn API did not return stats. Skipping scrape.");
+            }
             return { xp: "0", level: "0", streak: "0", certificates: "0", username: "" };
         }
 
