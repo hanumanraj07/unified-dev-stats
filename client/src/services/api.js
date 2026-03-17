@@ -86,7 +86,7 @@ export const profileApi = {
 export const sololearnApi = {
   getStats: async (url) => {
     const { data } = await api.get(`/sololearn/scraper?url=${encodeURIComponent(url)}`, {
-      timeout: 8000
+      timeout: 20000
     });
     return data;
   }

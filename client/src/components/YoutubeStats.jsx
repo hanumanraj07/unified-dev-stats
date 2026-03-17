@@ -23,7 +23,7 @@ function YoutubeStats({ stats }) {
           rel="noreferrer"
           className="panel-link text-accentBlue hover:underline"
         >
-          View YouTube Channel ->
+          View YouTube Channel -&gt;
         </a>
       )}
     </div>

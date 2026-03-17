@@ -1,81 +1,109 @@
 const axios = require("axios");
 
-const SOURCES = [
-  (username) => `https://leetcode-api-faisalshohag.vercel.app/${username}`,
-  (username) => `https://leetcode-stats-api.herokuapp.com/${username}`,
-  (username) => `https://alfa-leetcode-api.onrender.com/${username}/solved`
-];
+const GRAPHQL_ENDPOINT = "https://leetcode.com/graphql";
+const USER_AGENT = "dev-profile-aggregator";
+
+// Keep a short in-memory cache to reduce rate limits and speed up verify/save.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const cache = new Map(); // username -> { expiresAt, data, promise }
 
 function readCountFromArray(items, difficulty) {
   if (!Array.isArray(items)) return 0;
-  const row = items.find((entry) => String(entry?.difficulty).toLowerCase() === difficulty.toLowerCase());
+  const row = items.find(
+    (entry) => String(entry?.difficulty).toLowerCase() === difficulty.toLowerCase()
+  );
   return Number(row?.count || 0);
 }
 
-function normalizeLeetcodePayload(data, username) {
-  const allSolvedFromArray =
-    readCountFromArray(data?.matchedUserStats?.acSubmissionNum, "All") ||
-    readCountFromArray(data?.data?.matchedUserStats?.acSubmissionNum, "All");
+function startOfTodayUtcSeconds(nowMs = Date.now()) {
+  const now = new Date(nowMs);
+  return Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) / 1000);
+}
 
-  const easySolvedFromArray =
-    readCountFromArray(data?.matchedUserStats?.acSubmissionNum, "Easy") ||
-    readCountFromArray(data?.data?.matchedUserStats?.acSubmissionNum, "Easy");
-  const mediumSolvedFromArray =
-    readCountFromArray(data?.matchedUserStats?.acSubmissionNum, "Medium") ||
-    readCountFromArray(data?.data?.matchedUserStats?.acSubmissionNum, "Medium");
-  const hardSolvedFromArray =
-    readCountFromArray(data?.matchedUserStats?.acSubmissionNum, "Hard") ||
-    readCountFromArray(data?.data?.matchedUserStats?.acSubmissionNum, "Hard");
+async function fetchLeetcodeFromGraphql(username) {
+  const query = `query userProfile($username: String!, $limit: Int!) {
+    matchedUser(username: $username) {
+      username
+      profile { ranking }
+      submitStatsGlobal { acSubmissionNum { difficulty count submissions } }
+    }
+    recentAcSubmissionList(username: $username, limit: $limit) {
+      id
+      timestamp
+    }
+  }`;
 
-  const totalSolved = Number(data?.totalSolved ?? allSolvedFromArray ?? 0);
-  const easySolved = Number(data?.easySolved ?? easySolvedFromArray ?? 0);
-  const mediumSolved = Number(data?.mediumSolved ?? mediumSolvedFromArray ?? 0);
-  const hardSolved = Number(data?.hardSolved ?? hardSolvedFromArray ?? 0);
-  const ranking = Number(data?.ranking ?? data?.data?.matchedUser?.profile?.ranking ?? 0);
+  const { data } = await axios.post(
+    GRAPHQL_ENDPOINT,
+    { query, variables: { username, limit: 20 } },
+    {
+      timeout: 12000,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": USER_AGENT,
+        Referer: "https://leetcode.com"
+      }
+    }
+  );
 
-  if (
-    data?.errors?.length &&
-    !totalSolved &&
-    !easySolved &&
-    !mediumSolved &&
-    !hardSolved &&
-    !ranking
-  ) {
+  if (data?.errors?.length) {
+    const message = data.errors?.[0]?.message || "LeetCode GraphQL request failed.";
+    throw new Error(message);
+  }
+
+  const matched = data?.data?.matchedUser;
+  if (!matched) {
     throw new Error("LeetCode username not found.");
   }
+
+  const acSubmissionNum = matched?.submitStatsGlobal?.acSubmissionNum || [];
+  const totalSolved = readCountFromArray(acSubmissionNum, "All");
+  const easySolved = readCountFromArray(acSubmissionNum, "Easy");
+  const mediumSolved = readCountFromArray(acSubmissionNum, "Medium");
+  const hardSolved = readCountFromArray(acSubmissionNum, "Hard");
+  const ranking = Number(matched?.profile?.ranking || 0);
+
+  const recent = Array.isArray(data?.data?.recentAcSubmissionList)
+    ? data.data.recentAcSubmissionList
+    : [];
+  const todayStart = startOfTodayUtcSeconds();
+  const todaySolved = recent.filter((row) => Number(row?.timestamp || 0) >= todayStart).length;
 
   return {
     username,
     profileUrl: `https://leetcode.com/${username}`,
-    totalSolved,
-    easySolved,
-    mediumSolved,
-    hardSolved,
+    totalSolved: Number(totalSolved || 0),
+    easySolved: Number(easySolved || 0),
+    mediumSolved: Number(mediumSolved || 0),
+    hardSolved: Number(hardSolved || 0),
     ranking,
+    todaySolved,
     lastSynced: new Date()
   };
 }
 
 async function getLeetcode(username) {
-  if (!username) return null;
+  const key = String(username || "").trim();
+  if (!key) return null;
 
-  const attemptedErrors = [];
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached?.data && cached.expiresAt > now) return cached.data;
+  if (cached?.promise) return cached.promise;
 
-  for (const buildUrl of SOURCES) {
-    const endpoint = buildUrl(username);
-    try {
-      const { data } = await axios.get(endpoint, {
-        timeout: 9000,
-        headers: { "User-Agent": "dev-profile-aggregator" }
-      });
-      return normalizeLeetcodePayload(data, username);
-    } catch (error) {
-      const reason = error.response?.data?.message || error.response?.data || error.message;
-      attemptedErrors.push(`${endpoint}: ${typeof reason === "string" ? reason : JSON.stringify(reason)}`);
-    }
-  }
+  const promise = fetchLeetcodeFromGraphql(key)
+    .then((data) => {
+      cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      return data;
+    })
+    .catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
 
-  throw new Error(`Unable to fetch LeetCode stats. ${attemptedErrors.join(" | ")}`);
+  cache.set(key, { promise });
+  return promise;
 }
 
 module.exports = { getLeetcode };

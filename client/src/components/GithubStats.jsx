@@ -33,7 +33,7 @@ function GithubStats({ stats, username, variant = "both" }) {
             rel="noreferrer"
             className="panel-link text-accentGreen hover:underline"
           >
-            View GitHub Profile ->
+            View GitHub Profile -&gt;
           </a>
         </div>
       ) : null}

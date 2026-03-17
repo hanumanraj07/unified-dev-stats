@@ -131,7 +131,7 @@ function StudentDashboard() {
                 rel="noreferrer"
                 className="panel-link text-accentGreen hover:underline"
               >
-                View SoloLearn Profile ->
+                View SoloLearn Profile -&gt;
               </a>
             )}
           </div>

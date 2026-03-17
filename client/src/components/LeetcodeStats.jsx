@@ -36,7 +36,7 @@ function LeetcodeStats({ stats, username, variant = "both" }) {
             rel="noreferrer"
             className="panel-link text-accentOrange hover:underline"
           >
-            View LeetCode Profile ->
+            View LeetCode Profile -&gt;
           </a>
         </div>
       ) : null}
