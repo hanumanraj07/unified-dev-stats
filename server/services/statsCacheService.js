@@ -2,8 +2,6 @@ const User = require("../models/User");
 const { getGithub } = require("./githubService");
 const { getLeetcode } = require("./leetcodeService");
 const { getYoutube } = require("./youtubeService");
-const getTwitterStats = require("./twitterScraper");
-const getSololearnStats = require("./sololearnScraper");
 
 const safeNumber = (value) => {
   const num = Number(value);
@@ -68,7 +66,7 @@ async function fetchAndCacheStats(userId, platforms, options = {}) {
 
 async function refreshAllProfiles() {
   const students = await User.find({ role: "student" }).select(
-    "username github leetcode youtube linked twitter sololearn"
+    "username github leetcode youtube sololearn"
   );
 
   let successCount = 0;
@@ -81,8 +79,6 @@ async function refreshAllProfiles() {
         github: student.github,
         leetcode: student.leetcode,
         youtube: student.youtube,
-        linkedin: student.linkedin,
-        twitter: student.twitter,
         sololearn: student.sololearn
       };
 

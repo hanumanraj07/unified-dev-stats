@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Loader from "../components/Loader";
 import { useToast } from "../components/ToastContext";
-import { profileApi, sololearnApi, twitterApi, linkedinApi } from "../services/api";
+import { profileApi, sololearnApi } from "../services/api";
 
 const initialForm = {
   name: "",
@@ -15,15 +15,6 @@ const initialForm = {
   github: "",
   leetcode: "",
   youtube: "",
-  linkedinUrl: "",
-  linkedinFollowers: "",
-  linkedinConnections: "",
-  linkedinPosts: "",
-  linkedinSkills: "",
-  twitterUrl: "",
-  twitterFollowers: "",
-  twitterFollowing: "",
-  twitterPosts: "",
   sololearnUrl: "",
   sololearnXp: "",
   sololearnLevel: "",
@@ -179,24 +170,6 @@ function Admin() {
         }
       }
 
-      if (form.twitterUrl) {
-        try {
-          const twResponse = await twitterApi.getStats(form.twitterUrl);
-          if (twResponse && twResponse.data) {
-            const stats = twResponse.data;
-            setForm(prev => ({
-              ...prev,
-              twitterFollowers: stats.followers || "0",
-              twitterFollowing: stats.following || "0",
-              twitterPosts: stats.posts || "0"
-            }));
-            pushToast(`Twitter: ${stats.followers || 0} followers, ${stats.following || 0} following`, "success");
-          }
-        } catch (twError) {
-          console.error("Twitter fetch error:", twError);
-        }
-      }
-
       const failures = Object.entries(result.errors || {}).filter(([, message]) => Boolean(message));
       if (failures.length) {
         pushToast(
@@ -286,20 +259,6 @@ function Admin() {
         }
       }
 
-      if (form.twitterUrl) {
-        try {
-          const twResponse = await twitterApi.getStats(form.twitterUrl);
-          if (twResponse && twResponse.data) {
-            const stats = twResponse.data;
-            nextForm.twitterFollowers = stats.followers || "0";
-            nextForm.twitterFollowing = stats.following || "0";
-            nextForm.twitterPosts = stats.posts || "0";
-          }
-        } catch (twError) {
-          console.error("Twitter fetch error:", twError);
-        }
-      }
-
       const payload = {
         name: nextForm.name,
         username: nextForm.username,
@@ -310,19 +269,6 @@ function Admin() {
         github: normalizeGithubInput(nextForm.github),
         leetcode: normalizeLeetcodeInput(nextForm.leetcode),
         youtube: nextForm.youtube,
-        linkedin: {
-          url: nextForm.linkedinUrl,
-          followers: Number(nextForm.linkedinFollowers || 0),
-          connections: Number(nextForm.linkedinConnections || 0),
-          posts: Number(nextForm.linkedinPosts || 0),
-          skills: nextForm.linkedinSkills || ""
-        },
-        twitter: {
-          url: nextForm.twitterUrl,
-          followers: Number(nextForm.twitterFollowers || 0),
-          following: Number(nextForm.twitterFollowing || 0),
-          posts: Number(nextForm.twitterPosts || 0)
-        },
         sololearn: {
           url: nextForm.sololearnUrl,
           xp: Number(nextForm.sololearnXp || 0),
@@ -364,15 +310,6 @@ function Admin() {
       github: formatGithubInput(profile.github),
       leetcode: formatLeetcodeInput(profile.leetcode),
       youtube: formatYoutubeInput(profile.youtube),
-      linkedinUrl: profile.linkedin?.url || "",
-      linkedinFollowers: String(profile.linkedin?.followers ?? 0),
-      linkedinConnections: String(profile.linkedin?.connections ?? 0),
-      linkedinPosts: String(profile.linkedin?.posts ?? 0),
-      linkedinSkills: profile.linkedin?.skills || "",
-      twitterUrl: profile.twitter?.url || "",
-      twitterFollowers: String(profile.twitter?.followers ?? 0),
-      twitterFollowing: String(profile.twitter?.following ?? 0),
-      twitterPosts: String(profile.twitter?.posts ?? 0),
       sololearnUrl: profile.sololearn?.url || "",
       sololearnXp: String(profile.sololearn?.xp ?? 0),
       sololearnLevel: String(profile.sololearn?.level ?? 0),
@@ -439,23 +376,15 @@ function Admin() {
             <div>
               <label className="mb-1 block text-sm text-slate-300">YouTube URL</label>
               <input name="youtube" className="input" value={form.youtube} onChange={onChange} />
-              </div>
             </div>
+          </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">LinkedIn URL</label>
-                <input name="linkedinUrl" className="input" value={form.linkedinUrl} onChange={onChange} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">Twitter URL</label>
-                <input name="twitterUrl" className="input" value={form.twitterUrl} onChange={onChange} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">Sololearn URL</label>
-                <input name="sololearnUrl" className="input" value={form.sololearnUrl} onChange={onChange} />
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm text-slate-300">Sololearn URL</label>
+              <input name="sololearnUrl" className="input" value={form.sololearnUrl} onChange={onChange} />
             </div>
+          </div>
 
             <div className="flex flex-wrap gap-3">
               <button type="submit" className="btn-primary" disabled={saving}>

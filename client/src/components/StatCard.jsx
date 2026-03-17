@@ -14,11 +14,11 @@ function StatCard({ title, value, subValue = "", tone = "blue" }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       whileHover={{ y: -4 }}
-      className={`panel transition ${toneClass[tone] || toneClass.blue}`}
+      className={`panel relative min-h-[110px] transition ${toneClass[tone] || toneClass.blue}`}
     >
-      <p className="text-sm text-slate-400">{title}</p>
-      <p className="mt-2 font-mono text-2xl font-bold text-white">{value}</p>
-      {subValue ? <p className="mt-1 text-xs text-slate-500">{subValue}</p> : null}
+      <p className="text-[11px] uppercase tracking-wider text-slate-400">{title}</p>
+      <p className="mt-3 font-mono text-3xl font-semibold text-white">{value}</p>
+      {subValue ? <p className="mt-2 text-xs text-slate-500">{subValue}</p> : null}
     </motion.article>
   );
 }

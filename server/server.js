@@ -6,7 +6,6 @@ const morgan = require("morgan");
 const authRoutes = require("./routes/authRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const sololearnRoutes = require("./routes/sololearnRoutes");
-const twitterRoutes = require("./routes/twitterRoutes");
 const { ensureAdminUser } = require("./services/adminSeedService");
 const { startScheduler } = require("./services/schedulerService");
 
@@ -60,7 +59,6 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);
 app.use("/api/sololearn", sololearnRoutes);
-app.use("/api/twitter", twitterRoutes);
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;

@@ -18,7 +18,23 @@ body {
 }
 
 .panel {
-  @apply rounded-2xl border border-line bg-card p-5 shadow-lg;
+  @apply rounded-2xl border border-line/70 bg-gradient-to-br from-card/95 via-card/90 to-surface/80 p-5 shadow-lg shadow-black/30 backdrop-blur;
+}
+
+.mini-card {
+  @apply rounded-xl border border-line/70 bg-surface/70 px-3 py-2 text-center shadow-inner;
+}
+
+.mini-label {
+  @apply text-[11px] uppercase tracking-wider text-slate-400;
+}
+
+.mini-value {
+  @apply mt-1 text-lg font-semibold;
+}
+
+.panel-link {
+  @apply mt-3 inline-flex items-center gap-2 text-sm font-semibold;
 }
 
 .input {

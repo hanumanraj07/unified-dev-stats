@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaGithub, FaLinkedin, FaYoutube } from "react-icons/fa";
-import { FaXTwitter } from "react-icons/fa6";
+import { FaGithub, FaYoutube } from "react-icons/fa";
 import { SiLeetcode, SiSololearn } from "react-icons/si";
 import GithubStats from "../components/GithubStats";
 import LeetcodeStats from "../components/LeetcodeStats";
@@ -21,19 +20,6 @@ function StudentDashboard() {
     if (!value) return fallback;
     if (value.startsWith("http://") || value.startsWith("https://")) return value;
     return `https://${value}`;
-  };
-
-  const resolveLinkedinSkillsCount = (value) => {
-    if (value === null || value === undefined) return 0;
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    const raw = String(value).trim();
-    if (!raw) return 0;
-    const numeric = Number(raw);
-    if (Number.isFinite(numeric)) return numeric;
-    return raw
-      .split(/[,;\n]/)
-      .map((item) => item.trim())
-      .filter(Boolean).length;
   };
 
   const youtubeUrl = (() => {
@@ -65,18 +51,6 @@ function StudentDashboard() {
       accent: "hover:border-accentBlue/80 hover:text-accentBlue"
     },
     {
-      label: "LinkedIn",
-      href: ensureUrl(profile?.linkedin?.url, "https://www.linkedin.com"),
-      Icon: FaLinkedin,
-      accent: "hover:border-accentBlue/80 hover:text-accentBlue"
-    },
-    {
-      label: "Twitter",
-      href: ensureUrl(profile?.twitter?.url, "https://x.com"),
-      Icon: FaXTwitter,
-      accent: "hover:border-accentPurple/80 hover:text-accentPurple"
-    },
-    {
       label: "Sololearn",
       href: ensureUrl(profile?.sololearn?.url, "https://www.sololearn.com"),
       Icon: SiSololearn,
@@ -106,7 +80,7 @@ function StudentDashboard() {
       <section className="panel flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-white">Student Dashboard</h2>
-          <p className="text-sm text-slate-400">All six platform details in one dashboard view.</p>
+          <p className="text-sm text-slate-400">All platform details in one dashboard view.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/student" className="btn-secondary">
@@ -120,96 +94,34 @@ function StudentDashboard() {
 
       <ProfileCard profile={profile} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="GitHub Repos" value={profile?.stats?.github?.publicRepos ?? 0} tone="green" />
         <StatCard title="LeetCode Solved" value={profile?.stats?.leetcode?.totalSolved ?? 0} tone="orange" />
         <StatCard title="YouTube Subscribers" value={profile?.stats?.youtube?.subscribers ?? 0} tone="blue" />
-        <StatCard title="LinkedIn Connections" value={profile?.linkedin?.connections ?? 0} tone="blue" />
-        <StatCard title="Twitter Followers" value={profile?.twitter?.followers ?? 0} tone="purple" />
         <StatCard title="Sololearn Certificates" value={profile?.sololearn?.badges ?? 0} tone="green" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
         <div className="space-y-4">
-          <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="overview" />
-          <div className="panel">
-            <h3 className="mb-4 text-lg font-semibold text-white">Twitter Overview</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Posts</p>
-                <p className="text-lg font-bold text-accentPurple">{profile?.twitter?.posts ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Followers</p>
-                <p className="text-lg font-bold text-accentPurple">{profile?.twitter?.followers ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Following</p>
-                <p className="text-lg font-bold text-accentPurple">{profile?.twitter?.following ?? 0}</p>
-              </div>
-            </div>
-            {profile?.twitter?.url && (
-              <a
-                href={ensureUrl(profile?.twitter?.url, "https://x.com")}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 block text-sm text-accentPurple hover:underline"
-              >
-                View Twitter Profile →
-              </a>
-            )}
-          </div>
-          <div className="panel">
-            <h3 className="mb-4 text-lg font-semibold text-white">LinkedIn Overview</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Connections</p>
-                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.connections ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Posts</p>
-                <p className="text-lg font-bold text-accentBlue">{profile?.linkedin?.posts ?? 0}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Skills</p>
-                <p className="text-lg font-bold text-accentBlue">
-                  {resolveLinkedinSkillsCount(profile?.linkedin?.skills)}
-                </p>
-              </div>
-            </div>
-            {profile?.linkedin?.url && (
-              <a
-                href={ensureUrl(profile?.linkedin?.url, "https://www.linkedin.com")}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 block text-sm text-accentBlue hover:underline"
-              >
-                View LinkedIn Profile →
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="space-y-4">
           <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} variant="overview" />
-          <YoutubeStats stats={profile?.stats?.youtube} />
           <div className="panel">
             <h3 className="mb-4 text-lg font-semibold text-white">Sololearn Overview</h3>
             <div className="grid grid-cols-4 gap-3">
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">XP</p>
-                <p className="text-lg font-bold text-accentGreen">{profile?.sololearn?.xp ?? 0}</p>
+              <div className="mini-card">
+                <p className="mini-label">XP</p>
+                <p className="mini-value text-accentGreen">{profile?.sololearn?.xp ?? 0}</p>
               </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Level</p>
-                <p className="text-lg font-bold text-accentGreen">{profile?.sololearn?.level ?? 0}</p>
+              <div className="mini-card">
+                <p className="mini-label">Level</p>
+                <p className="mini-value text-accentGreen">{profile?.sololearn?.level ?? 0}</p>
               </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Certs</p>
-                <p className="text-lg font-bold text-accentGreen">{profile?.sololearn?.badges ?? 0}</p>
+              <div className="mini-card">
+                <p className="mini-label">Certs</p>
+                <p className="mini-value text-accentGreen">{profile?.sololearn?.badges ?? 0}</p>
               </div>
-              <div className="rounded-lg border border-line bg-surface p-3 text-center">
-                <p className="text-xs text-slate-400">Streak</p>
-                <p className="text-lg font-bold text-accentGreen">{profile?.sololearn?.streak ?? 0}</p>
+              <div className="mini-card">
+                <p className="mini-label">Streak</p>
+                <p className="mini-value text-accentGreen">{profile?.sololearn?.streak ?? 0}</p>
               </div>
             </div>
             {profile?.sololearn?.url && (
@@ -217,24 +129,28 @@ function StudentDashboard() {
                 href={ensureUrl(profile?.sololearn?.url, "https://www.sololearn.com")}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 block text-sm text-accentGreen hover:underline"
+                className="panel-link text-accentGreen hover:underline"
               >
-                View SoloLearn Profile →
+                View SoloLearn Profile ->
               </a>
             )}
           </div>
         </div>
+        <div className="space-y-4">
+          <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="overview" />
+          <YoutubeStats stats={profile?.stats?.youtube} />
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2 items-stretch">
-        <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="contribution" />
         <LeetcodeStats stats={profile?.stats?.leetcode} username={profile?.leetcode} variant="breakdown" />
+        <GithubStats stats={profile?.stats?.github} username={profile?.github} variant="contribution" />
       </section>
 
       <section className="panel">
         <h3 className="text-xl font-bold text-white">Quick Platform Links</h3>
         <p className="mt-1 text-sm text-slate-400">Click any icon to open your platform profile.</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {platformLinks.map(({ label, href, Icon, accent }) => (
             <a
               key={label}

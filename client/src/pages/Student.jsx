@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Loader from "../components/Loader";
 import ProfileCard from "../components/ProfileCard";
 import { useToast } from "../components/ToastContext";
-import { profileApi, sololearnApi, twitterApi, linkedinApi } from "../services/api";
+import { profileApi, sololearnApi } from "../services/api";
 
 const initialForm = {
   name: "",
@@ -12,15 +12,6 @@ const initialForm = {
   github: "",
   leetcode: "",
   youtube: "",
-  linkedinUrl: "",
-  linkedinFollowers: "",
-  linkedinConnections: "",
-  linkedinPosts: "",
-  linkedinSkills: "",
-  twitterUrl: "",
-  twitterFollowers: "",
-  twitterFollowing: "",
-  twitterPosts: "",
   sololearnUrl: "",
   sololearnXp: "",
   sololearnLevel: "",
@@ -113,15 +104,6 @@ function Student() {
       github: formatGithubInput(data?.github),
       leetcode: formatLeetcodeInput(data?.leetcode),
       youtube: formatYoutubeInput(data?.youtube),
-      linkedinUrl: data?.linkedin?.url || "",
-      linkedinFollowers: String(data?.linkedin?.followers ?? 0),
-      linkedinConnections: String(data?.linkedin?.connections ?? 0),
-      linkedinPosts: String(data?.linkedin?.posts ?? 0),
-      linkedinSkills: data?.linkedin?.skills || "",
-      twitterUrl: data?.twitter?.url || "",
-      twitterFollowers: String(data?.twitter?.followers ?? 0),
-      twitterFollowing: String(data?.twitter?.following ?? 0),
-      twitterPosts: String(data?.twitter?.posts ?? 0),
       sololearnUrl: data?.sololearn?.url || "",
       sololearnXp: String(data?.sololearn?.xp ?? 0),
       sololearnLevel: String(data?.sololearn?.level ?? 0),
@@ -194,24 +176,6 @@ function Student() {
           }
         } catch (slError) {
           console.error("SoloLearn fetch error:", slError);
-        }
-      }
-
-      if (form.twitterUrl) {
-        try {
-          const twResponse = await twitterApi.getStats(form.twitterUrl);
-          if (twResponse && twResponse.data) {
-            const stats = twResponse.data;
-            setForm(prev => ({
-              ...prev,
-              twitterFollowers: stats.followers || "0",
-              twitterFollowing: stats.following || "0",
-              twitterPosts: stats.posts || "0"
-            }));
-            pushToast(`Twitter: ${stats.followers || 0} followers, ${stats.following || 0} following`, "success");
-          }
-        } catch (twError) {
-          console.error("Twitter fetch error:", twError);
         }
       }
 
@@ -297,20 +261,6 @@ function Student() {
         }
       }
 
-      if (form.twitterUrl) {
-        try {
-          const twResponse = await twitterApi.getStats(form.twitterUrl);
-          if (twResponse && twResponse.data) {
-            const stats = twResponse.data;
-            nextForm.twitterFollowers = stats.followers || "0";
-            nextForm.twitterFollowing = stats.following || "0";
-            nextForm.twitterPosts = stats.posts || "0";
-          }
-        } catch (twError) {
-          console.error("Twitter fetch error:", twError);
-        }
-      }
-
       const payload = {
         name: nextForm.name,
         username: nextForm.username,
@@ -319,19 +269,6 @@ function Student() {
         github: normalizeGithubInput(nextForm.github),
         leetcode: normalizeLeetcodeInput(nextForm.leetcode),
         youtube: nextForm.youtube,
-        linkedin: {
-          url: nextForm.linkedinUrl,
-          followers: Number(nextForm.linkedinFollowers || 0),
-          connections: Number(nextForm.linkedinConnections || 0),
-          posts: Number(nextForm.linkedinPosts || 0),
-          skills: nextForm.linkedinSkills || ""
-        },
-        twitter: {
-          url: nextForm.twitterUrl,
-          followers: Number(nextForm.twitterFollowers || 0),
-          following: Number(nextForm.twitterFollowing || 0),
-          posts: Number(nextForm.twitterPosts || 0)
-        },
         sololearn: {
           url: nextForm.sololearnUrl,
           xp: Number(nextForm.sololearnXp || 0),
@@ -366,7 +303,7 @@ function Student() {
       <section className="panel">
         <h2 className="text-xl font-bold text-white">Student Profile Route</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Add/edit your details for GitHub, LeetCode, YouTube, LinkedIn, Twitter, and Sololearn.
+          Add/edit your details for GitHub, LeetCode, YouTube, and Sololearn.
         </p>
 
         <form className="mt-5 space-y-4" onSubmit={onSave}>
@@ -396,54 +333,10 @@ function Student() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">LinkedIn URL</label>
-              <input name="linkedinUrl" className="input" value={form.linkedinUrl} onChange={onChange} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">Twitter URL</label>
-              <input name="twitterUrl" className="input" value={form.twitterUrl} onChange={onChange} />
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm text-slate-300">Sololearn URL</label>
               <input name="sololearnUrl" className="input" value={form.sololearnUrl} onChange={onChange} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">LinkedIn Connections</label>
-              <input
-                name="linkedinConnections"
-                type="number"
-                min="0"
-                className="input"
-                value={form.linkedinConnections}
-                onChange={onChange}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">LinkedIn Posts</label>
-              <input
-                name="linkedinPosts"
-                type="number"
-                min="0"
-                className="input"
-                value={form.linkedinPosts}
-                onChange={onChange}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-slate-300">LinkedIn Skills (count)</label>
-              <input
-                name="linkedinSkills"
-                type="number"
-                min="0"
-                className="input"
-                value={form.linkedinSkills}
-                onChange={onChange}
-              />
             </div>
           </div>
 

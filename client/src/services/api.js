@@ -90,18 +90,4 @@ export const sololearnApi = {
   }
 };
 
-export const twitterApi = {
-  getStats: async (url) => {
-    const { data } = await api.get(`/twitter/scraper?url=${encodeURIComponent(url)}`);
-    return data;
-  }
-};
-
-export const linkedinApi = {
-  getStats: async (url) => {
-    const { data } = await api.get(`/linkedin/scraper?url=${encodeURIComponent(url)}`);
-    return data;
-  }
-};
-
 export default api;

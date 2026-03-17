@@ -18,19 +18,6 @@ function computeDevScore(stats) {
 
 function normalizeManualData(body) {
   return {
-    linkedin: {
-      url: body.linkedin?.url || body.linkedinUrl || "",
-      followers: safeNumber(body.linkedin?.followers ?? body.linkedinFollowers),
-      connections: safeNumber(body.linkedin?.connections ?? body.linkedinConnections),
-      posts: safeNumber(body.linkedin?.posts ?? body.linkedinPosts),
-      skills: body.linkedin?.skills || body.linkedinSkills || ""
-    },
-    twitter: {
-      url: body.twitter?.url || body.twitterUrl || "",
-      followers: safeNumber(body.twitter?.followers ?? body.twitterFollowers),
-      following: safeNumber(body.twitter?.following ?? body.twitterFollowing),
-      posts: safeNumber(body.twitter?.posts ?? body.twitterPosts)
-    },
     sololearn: {
       url: body.sololearn?.url || body.sololearnUrl || "",
       xp: safeNumber(body.sololearn?.xp ?? body.sololearnXp),
@@ -52,7 +39,6 @@ function mergeStats(existingStats, verifiedStats) {
     github: pick("github"),
     leetcode: pick("leetcode"),
     youtube: pick("youtube"),
-    twitter: pick("twitter"),
     sololearn: pick("sololearn")
   };
 }
@@ -84,13 +70,8 @@ function applyProfilePayload(profile, payload, stats) {
   profile.github = payload.github ?? profile.github;
   profile.leetcode = payload.leetcode ?? profile.leetcode;
   profile.youtube = payload.youtube ?? profile.youtube;
-  profile.linkedin = manual.linkedin;
-  profile.twitter = manual.twitter;
   profile.sololearn = manual.sololearn;
   
-  if (!stats.twitter || !Object.keys(stats.twitter).some(k => k !== 'lastSynced')) {
-    stats.twitter = { ...manual.twitter, lastSynced: null };
-  }
   if (!stats.sololearn || !Object.keys(stats.sololearn).some(k => k !== 'lastSynced')) {
     stats.sololearn = { ...manual.sololearn, lastSynced: null };
   }
@@ -179,8 +160,6 @@ async function createProfile(req, res) {
       github: payload.github || "",
       leetcode: payload.leetcode || "",
       youtube: payload.youtube || "",
-      linkedin: manual.linkedin,
-      twitter: manual.twitter,
       sololearn: manual.sololearn,
       stats,
       devScore

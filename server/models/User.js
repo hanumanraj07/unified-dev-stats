@@ -44,29 +44,6 @@ const youtubeStatsSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const twitterStatsSchema = new mongoose.Schema(
-  {
-    url: { type: String, default: "" },
-    followers: { type: Number, default: 0 },
-    following: { type: Number, default: 0 },
-    posts: { type: Number, default: 0 },
-    lastSynced: Date
-  },
-  { _id: false }
-);
-
-const linkedinStatsSchema = new mongoose.Schema(
-  {
-    url: { type: String, default: "" },
-    followers: { type: Number, default: 0 },
-    connections: { type: Number, default: 0 },
-    posts: { type: Number, default: 0 },
-    skills: { type: String, default: "" },
-    lastSynced: Date
-  },
-  { _id: false }
-);
-
 const sololearnStatsSchema = new mongoose.Schema(
   {
     url: { type: String, default: "" },
@@ -91,19 +68,6 @@ const userSchema = new mongoose.Schema(
     github: { type: String, default: "", trim: true },
     leetcode: { type: String, default: "", trim: true },
     youtube: { type: String, default: "", trim: true },
-    linkedin: {
-      url: { type: String, default: "" },
-      followers: { type: Number, default: 0 },
-      connections: { type: Number, default: 0 },
-      posts: { type: Number, default: 0 },
-      skills: { type: String, default: "" }
-    },
-    twitter: {
-      url: { type: String, default: "" },
-      followers: { type: Number, default: 0 },
-      following: { type: Number, default: 0 },
-      posts: { type: Number, default: 0 }
-    },
     sololearn: {
       url: { type: String, default: "" },
       xp: { type: Number, default: 0 },
@@ -115,8 +79,6 @@ const userSchema = new mongoose.Schema(
       github: { type: githubStatsSchema, default: () => ({}) },
       leetcode: { type: leetcodeStatsSchema, default: () => ({}) },
       youtube: { type: youtubeStatsSchema, default: () => ({}) },
-      twitter: { type: twitterStatsSchema, default: () => ({}) },
-      linkedin: { type: linkedinStatsSchema, default: () => ({}) },
       sololearn: { type: sololearnStatsSchema, default: () => ({}) }
     },
     lastFetchedAt: { type: Date, default: null },

@@ -17,26 +17,26 @@ function LeetcodeStats({ stats, username, variant = "both" }) {
         <div className="panel">
           <h3 className="mb-4 text-lg font-semibold text-white">LeetCode Overview</h3>
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-line bg-surface p-3 text-center">
-              <p className="text-xs text-slate-400">Total Solved</p>
-              <p className="text-lg font-bold text-accentOrange">{stats?.totalSolved ?? 0}</p>
+            <div className="mini-card">
+              <p className="mini-label">Total Solved</p>
+              <p className="mini-value text-accentOrange">{stats?.totalSolved ?? 0}</p>
             </div>
-            <div className="rounded-lg border border-line bg-surface p-3 text-center">
-              <p className="text-xs text-slate-400">Today Solved</p>
-              <p className="text-lg font-bold text-accentOrange">{todaySolved}</p>
+            <div className="mini-card">
+              <p className="mini-label">Today Solved</p>
+              <p className="mini-value text-accentOrange">{todaySolved}</p>
             </div>
-            <div className="rounded-lg border border-line bg-surface p-3 text-center">
-              <p className="text-xs text-slate-400">Rank</p>
-              <p className="text-lg font-bold text-accentOrange">{stats?.ranking ?? 0}</p>
+            <div className="mini-card">
+              <p className="mini-label">Rank</p>
+              <p className="mini-value text-accentOrange">{stats?.ranking ?? 0}</p>
             </div>
           </div>
           <a
             href={profileUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 block text-sm text-accentOrange hover:underline"
+            className="panel-link text-accentOrange hover:underline"
           >
-            View LeetCode Profile →
+            View LeetCode Profile ->
           </a>
         </div>
       ) : null}

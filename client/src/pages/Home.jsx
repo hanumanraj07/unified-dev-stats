@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const features = [
-  "Unified dashboard for GitHub, LeetCode, YouTube, LinkedIn, Twitter, and Sololearn",
+  "Unified dashboard for GitHub, LeetCode, YouTube, and Sololearn",
   "Verify Profile button to auto-fetch platform stats from APIs",
   "Developer Score system and live leaderboard",
   "Public Dev Card generator for social sharing"
