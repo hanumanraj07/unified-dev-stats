@@ -1,8 +1,15 @@
+const axios = require("axios");
 const { launchBrowser } = require("./puppeteerLauncher");
 
 const SOLOLEARN_COOKIE_ENV_KEYS = [
     "SOLOLEARN_COOKIE_STRING",
     "SOLOLEARN_COOKIES"
+];
+
+const SOLOLEARN_BEARER_ENV_KEYS = [
+    "SOLOLEARN_AUTH_BEARER",
+    "SOLOLEARN_BEARER",
+    "SOLOLEARN_AUTH_TOKEN"
 ];
 
 function parseCookieString(cookieString) {
@@ -31,6 +38,14 @@ function buildSololearnCookies() {
         .map(key => process.env[key])
         .find(value => value && value.trim().length > 0);
     return parseCookieString(cookieString);
+}
+
+function getSololearnBearer() {
+    const bearerValue = SOLOLEARN_BEARER_ENV_KEYS
+        .map(key => process.env[key])
+        .find(value => value && value.trim().length > 0);
+    if (!bearerValue) return null;
+    return bearerValue.startsWith("Bearer ") ? bearerValue.trim() : `Bearer ${bearerValue.trim()}`;
 }
 
 function buildCookiePayloads(cookies) {
@@ -133,6 +148,70 @@ function extractSololearnStatsFromResponses(responses) {
     };
 }
 
+function extractSololearnProfileId(profileUrl) {
+    if (!profileUrl) return null;
+    try {
+        const url = new URL(profileUrl);
+        const match = url.pathname.match(/profile\/(\d+)/i);
+        if (match) return match[1];
+        const numeric = url.pathname.match(/(\d{5,})/);
+        return numeric ? numeric[1] : null;
+    } catch {
+        const fallback = String(profileUrl).match(/(\d{5,})/);
+        return fallback ? fallback[1] : null;
+    }
+}
+
+async function fetchSololearnApiStats(profileUrl) {
+    const profileId = extractSololearnProfileId(profileUrl);
+    if (!profileId) return null;
+
+    const bearer = getSololearnBearer();
+    if (!bearer) return null;
+
+    const headers = {
+        Accept: "application/json",
+        Authorization: bearer,
+        Origin: "https://www.sololearn.com",
+        Referer: "https://www.sololearn.com/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    };
+
+    const baseUrls = ["https://api2.sololearn.com", "https://api3.sololearn.com"];
+    const paths = [
+        `/v2/profile/${profileId}`,
+        `/v2/profile/${profileId}?sections=1,3,7,8`,
+        `/v2/userprofile/${profileId}`,
+        `/v2/userprofile/${profileId}?sections=1,3,7,8`,
+        `/v2/streak/api/streaks/${profileId}`,
+        `/v2/learningexperience/${profileId}`,
+        `/v2/xp/${profileId}`
+    ];
+
+    const responses = [];
+
+    for (const base of baseUrls) {
+        for (const path of paths) {
+            const url = `${base}${path}`;
+            try {
+                const { data } = await axios.get(url, { headers, timeout: 8000 });
+                responses.push({ url, data });
+                const extracted = extractSololearnStatsFromResponses(responses);
+                if (extracted) {
+                    return extracted;
+                }
+            } catch (error) {
+                const status = error?.response?.status;
+                if (status === 401 || status === 403) {
+                    return null;
+                }
+            }
+        }
+    }
+
+    return extractSololearnStatsFromResponses(responses);
+}
+
 async function getSololearnStats(profileUrl) {
     let browser = null;
     const navigationTimeout = 20000;
@@ -146,6 +225,19 @@ async function getSololearnStats(profileUrl) {
             throw new Error('Invalid URL format');
         }
         
+        const apiDirectStats = await fetchSololearnApiStats(profileUrl);
+        if (apiDirectStats) {
+            console.log("Final scraped data (api-direct):", apiDirectStats);
+            return apiDirectStats;
+        }
+
+        const cookies = buildSololearnCookies();
+        const bearer = getSololearnBearer();
+        if (!cookies.length && !bearer) {
+            console.warn("No SoloLearn auth cookies or bearer token found. Skipping scrape.");
+            return { xp: "0", level: "0", streak: "0", certificates: "0", username: "" };
+        }
+
         browser = await launchBrowser();
 
         const page = await browser.newPage();
@@ -195,12 +287,20 @@ async function getSololearnStats(profileUrl) {
             }
         });
 
-        const cookies = buildSololearnCookies();
-        if (cookies.length) {
-            const cookiePayloads = buildCookiePayloads(cookies);
+        if (bearer) {
+            try {
+                await page.setExtraHTTPHeaders({ Authorization: bearer });
+            } catch (headerError) {
+                console.warn("SoloLearn auth header setup failed:", headerError?.message || headerError);
+            }
+        }
+
+        const cookiesForPage = cookies;
+        if (cookiesForPage.length) {
+            const cookiePayloads = buildCookiePayloads(cookiesForPage);
             await page.setCookie(...cookiePayloads);
             console.log(`Applied ${cookiePayloads.length} SoloLearn auth cookies.`);
-        } else {
+        } else if (!bearer) {
             console.warn("No SoloLearn auth cookies found. Set SOLOLEARN_COOKIE_STRING for authenticated scraping.");
         }
         
